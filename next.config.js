@@ -13,6 +13,25 @@ const nextConfig = {
     experimental: {
         serverComponentsExternalPackages: ["@prisma/client", "prisma", "bcryptjs"],
         instrumentationHook: true,
+        optimizePackageImports: [
+            'lucide-react',
+            'date-fns',
+            'recharts',
+            'framer-motion',
+            '@tanstack/react-query',
+            '@radix-ui/react-avatar',
+            '@radix-ui/react-checkbox',
+            '@radix-ui/react-dialog',
+            '@radix-ui/react-dropdown-menu',
+            '@radix-ui/react-label',
+            '@radix-ui/react-popover',
+            '@radix-ui/react-progress',
+            '@radix-ui/react-radio-group',
+            '@radix-ui/react-select',
+            '@radix-ui/react-separator',
+            '@radix-ui/react-slot',
+            '@radix-ui/react-tabs',
+        ],
         serverActions: {
             allowedOrigins: [
                 "localhost:3000",
@@ -31,7 +50,18 @@ const nextConfig = {
         if (dev) {
             config.watchOptions = {
                 ...config.watchOptions,
-                ignored: ['**/node_modules', '**/prisma/*.db', '**/prisma/*.db-wal', '**/prisma/*.db-shm', '**/*.log']
+                ignored: [
+                    '**/node_modules/**',
+                    '**/.git/**',
+                    '**/dist/**',
+                    '**/build/**',
+                    '**/release/**',
+                    '**/.agents/**',
+                    '**/knowledge/**',
+                    '**/graphify-out/**',
+                    '**/prisma/*.db*',
+                    '**/*.log'
+                ]
             };
         }
         if (!isServer) {
@@ -44,9 +74,6 @@ const nextConfig = {
                 async_hooks: false,
             };
             // Stub @prisma/client for client builds so it never reaches the browser bundle.
-            // Bare package names (e.g. '@prisma/client') are intercepted by webpack's alias
-            // system BEFORE Next.js's JsConfigPathsPlugin expands path aliases — which is why
-            // aliasing '@/lib/prisma$' (a path alias) failed: the path plugin runs first.
             config.resolve.alias = {
                 ...config.resolve.alias,
                 '@prisma/client': require('path').resolve(
@@ -60,4 +87,3 @@ const nextConfig = {
 };
 
 module.exports = withBundleAnalyzer(nextConfig);
-// Touch to force rebuild

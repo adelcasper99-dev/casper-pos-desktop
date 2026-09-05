@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React from "react";
 import { FlatpickrRangePicker } from "@/components/ui/flatpickr-range-picker";
@@ -32,6 +32,11 @@ export function DashboardHeader({
     onBranchChange,
     branches = []
 }: DashboardHeaderProps) {
+    const [mounted, setMounted] = React.useState(false);
+    React.useEffect(() => {
+        setMounted(true);
+    }, []);
+
     const isOnline = typeof navigator !== "undefined" ? navigator.onLine : true;
 
     const presets: { id: DatePreset; label: string }[] = [
@@ -54,15 +59,15 @@ export function DashboardHeader({
                             لوحة التحكم والمؤشرات
                         </h1>
                         <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
-                            <span className="flex items-center gap-1.5">
+                            <span className="flex items-center gap-1.5" suppressHydrationWarning>
                                 <span className={cn(
                                     "w-2 h-2 rounded-full inline-block animate-pulse",
-                                    isOnline ? "bg-emerald-500 shadow-xs shadow-emerald-500/50" : "bg-rose-500"
+                                    (!mounted || isOnline) ? "bg-emerald-500 shadow-xs shadow-emerald-500/50" : "bg-rose-500"
                                 )} />
-                                {isOnline ? "متصل بالنظام" : "الوضع غير المتصل (Offline)"}
+                                {mounted ? (isOnline ? "متصل بالنظام" : "الوضع غير المتصل (Offline)") : "متصل بالنظام"}
                             </span>
-                            {lastUpdated && (
-                                <span className="opacity-75">
+                            {mounted && lastUpdated && (
+                                <span className="opacity-75" suppressHydrationWarning>
                                     • آخر تحديث: {lastUpdated.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })}
                                 </span>
                             )}

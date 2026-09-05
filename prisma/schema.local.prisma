@@ -1248,10 +1248,13 @@ model MasterDataTombstone {
 }
 
 
+// ── Tenant Model ───────────────────────────────────────
 
 
+// ── License Model ──────────────────────────────────────
 
 
+// ── Per-Tenant Sequential Numbering ───────────────────
 
 
 // ── Self-Service Signup OTP Verification ──────────────

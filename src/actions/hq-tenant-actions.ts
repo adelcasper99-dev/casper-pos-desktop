@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { secureAction } from "@/lib/safe-action";
 import { getSession } from "@/lib/auth";
+import { runWithTenant } from "@/lib/prisma-tenant-extension";
 import { z } from "zod";
 import crypto from "crypto";
 import { LIFETIME_YEAR_THRESHOLD } from "@/lib/hq-metrics";
@@ -38,10 +39,11 @@ export async function provisionTenantCore(params: {
   const { domainToUnicode } = require("url");
   const normalizedSlug = domainToUnicode(cleanSlug);
 
-  return await prisma.$transaction(async (tx) => {
-    const tenantId = normalizedSlug;
-    const syncSecret = crypto.randomBytes(32).toString("hex");
-    const branchId = `branch-${crypto.randomBytes(4).toString("hex")}`;
+  return await runWithTenant('SYSTEM', async () => {
+    return await prisma.$transaction(async (tx) => {
+      const tenantId = normalizedSlug;
+      const syncSecret = crypto.randomBytes(32).toString("hex");
+      const branchId = `branch-${crypto.randomBytes(4).toString("hex")}`;
 
     // 1. Create Tenant
     const tenant = await tx.tenant.create({
@@ -174,6 +176,7 @@ export async function provisionTenantCore(params: {
     });
 
     return { tenant, user, branchId, activationCode };
+    });
   });
 }
 
@@ -221,18 +224,20 @@ export const toggleTenantStatus = secureAction(
 
     const { tenantId } = toggleSchema.parse(payload);
 
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId }
+    return await runWithTenant('SYSTEM', async () => {
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId }
+      });
+
+      if (!tenant) throw new Error("Tenant not found");
+
+      await prisma.tenant.update({
+        where: { id: tenantId },
+        data: { isActive: !tenant.isActive }
+      });
+
+      return { success: true };
     });
-
-    if (!tenant) throw new Error("Tenant not found");
-
-    await prisma.tenant.update({
-      where: { id: tenantId },
-      data: { isActive: !tenant.isActive }
-    });
-
-    return { success: true };
   }
 );
 
@@ -251,22 +256,24 @@ export const approveHardwareSwap = secureAction(
 
     const { licenseId, newMac } = approveSwapSchema.parse(payload);
 
-    const license = await prisma.license.findUnique({
-      where: { id: licenseId }
+    return await runWithTenant('SYSTEM', async () => {
+      const license = await prisma.license.findUnique({
+        where: { id: licenseId }
+      });
+
+      if (!license) throw new Error("License not found");
+
+      await prisma.license.update({
+        where: { id: licenseId },
+        data: { 
+          macAddress: newMac,
+          status: "ACTIVE",
+          emergencyModeAt: null
+        }
+      });
+
+      return { success: true };
     });
-
-    if (!license) throw new Error("License not found");
-
-    await prisma.license.update({
-      where: { id: licenseId },
-      data: { 
-        macAddress: newMac,
-        status: "ACTIVE",
-        emergencyModeAt: null
-      }
-    });
-
-    return { success: true };
   }
 );
 
@@ -288,43 +295,50 @@ export const editTenant = secureAction(
 
     const { tenantId, name, adminUsername, newPassword, adminRole } = editTenantSchema.parse(payload);
 
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId }
+    return await runWithTenant('SYSTEM', async () => {
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId }
+      });
+
+      if (!tenant) throw new Error("Tenant not found");
+
+      await prisma.tenant.update({
+        where: { id: tenantId },
+        data: { name }
+      });
+
+      // Update Primary User of this specific tenant if password, username, or role changed
+      const adminUser = await prisma.user.findFirst({
+        where: { tenantId: tenant.id }
+      });
+
+      if (adminUser) {
+        // Strict guard: Never modify a user outside the target tenant
+        if (adminUser.tenantId !== tenant.id) {
+          throw new Error("Security Violation: User tenant mismatch.");
+        }
+
+        const updateData: { username?: string; roleStr?: string; password?: string } = {};
+        if (adminUsername && adminUsername.trim() !== "" && adminUsername !== adminUser.username) {
+          updateData.username = adminUsername.trim().toLowerCase();
+        }
+        if (adminRole && adminRole !== adminUser.roleStr) {
+          updateData.roleStr = adminRole;
+        }
+        if (newPassword && newPassword.trim().length >= 6) {
+          const bcrypt = require("bcryptjs");
+          updateData.password = await bcrypt.hash(newPassword.trim(), 12);
+        }
+        if (Object.keys(updateData).length > 0) {
+          await prisma.user.update({
+            where: { id: adminUser.id },
+            data: updateData
+          });
+        }
+      }
+
+      return { success: true };
     });
-
-    if (!tenant) throw new Error("Tenant not found");
-
-    await prisma.tenant.update({
-      where: { id: tenantId },
-      data: { name }
-    });
-
-    // Update Primary User if password, username, or role changed
-    const adminUser = await prisma.user.findFirst({
-      where: { tenantId }
-    });
-
-    if (adminUser) {
-      const updateData: { username?: string; roleStr?: string; password?: string } = {};
-      if (adminUsername && adminUsername.trim() !== "" && adminUsername !== adminUser.username) {
-        updateData.username = adminUsername.trim();
-      }
-      if (adminRole && adminRole !== adminUser.roleStr) {
-        updateData.roleStr = adminRole;
-      }
-      if (newPassword && newPassword.trim().length >= 6) {
-        const bcrypt = require("bcryptjs");
-        updateData.password = await bcrypt.hash(newPassword.trim(), 12);
-      }
-      if (Object.keys(updateData).length > 0) {
-        await prisma.user.update({
-          where: { id: adminUser.id },
-          data: updateData
-        });
-      }
-    }
-
-    return { success: true };
   }
 );
 
@@ -344,30 +358,32 @@ export const renewLicense = secureAction(
 
     const { licenseId, durationDays } = renewLicenseSchema.parse(payload);
 
-    const license = await prisma.license.findUnique({
-      where: { id: licenseId }
-    });
+    return await runWithTenant('SYSTEM', async () => {
+      const license = await prisma.license.findUnique({
+        where: { id: licenseId }
+      });
 
-    if (!license) throw new Error("License not found");
+      if (!license) throw new Error("License not found");
 
-    // Lifetime License Guard
-    if (new Date(license.expiresAt).getFullYear() > LIFETIME_YEAR_THRESHOLD) {
-      return { success: true, newExpiresAt: new Date(license.expiresAt).toISOString() };
-    }
-
-    const currentExpiry = new Date(license.expiresAt).getTime();
-    const baseTime = Math.max(Date.now(), currentExpiry);
-    const newExpiresAt = new Date(baseTime + durationDays * 24 * 60 * 60 * 1000);
-
-    await prisma.license.update({
-      where: { id: licenseId },
-      data: {
-        expiresAt: newExpiresAt,
-        status: "ACTIVE"
+      // Lifetime License Guard
+      if (new Date(license.expiresAt).getFullYear() > LIFETIME_YEAR_THRESHOLD) {
+        return { success: true, newExpiresAt: new Date(license.expiresAt).toISOString() };
       }
-    });
 
-    return { success: true, newExpiresAt: newExpiresAt.toISOString() };
+      const currentExpiry = new Date(license.expiresAt).getTime();
+      const baseTime = Math.max(Date.now(), currentExpiry);
+      const newExpiresAt = new Date(baseTime + durationDays * 24 * 60 * 60 * 1000);
+
+      await prisma.license.update({
+        where: { id: licenseId },
+        data: {
+          expiresAt: newExpiresAt,
+          status: "ACTIVE"
+        }
+      });
+
+      return { success: true, newExpiresAt: newExpiresAt.toISOString() };
+    });
   }
 );
 
@@ -386,32 +402,34 @@ export const revokeLicense = secureAction(
 
     const { licenseId, tenantId } = revokeLicenseSchema.parse(payload);
 
-    const license = await prisma.license.findUnique({
-      where: { id: licenseId },
-      select: { id: true, tenantId: true }
-    });
-
-    if (!license) {
-      throw new Error("License not found");
-    }
-
-    // IDOR Protection: Verify license belongs to the specified tenantId
-    if (license.tenantId !== tenantId) {
-      throw new Error("License does not belong to the specified tenant.");
-    }
-
-    await prisma.$transaction([
-      prisma.license.update({
+    return await runWithTenant('SYSTEM', async () => {
+      const license = await prisma.license.findUnique({
         where: { id: licenseId },
-        data: { status: "REVOKED" }
-      }),
-      prisma.tenant.update({
-        where: { id: tenantId },
-        data: { isActive: false }
-      })
-    ]);
+        select: { id: true, tenantId: true }
+      });
 
-    return { success: true };
+      if (!license) {
+        throw new Error("License not found");
+      }
+
+      // IDOR Protection: Verify license belongs to the specified tenantId
+      if (license.tenantId !== tenantId) {
+        throw new Error("License does not belong to the specified tenant.");
+      }
+
+      await prisma.$transaction([
+        prisma.license.update({
+          where: { id: licenseId },
+          data: { status: "REVOKED" }
+        }),
+        prisma.tenant.update({
+          where: { id: tenantId },
+          data: { isActive: false }
+        })
+      ]);
+
+      return { success: true };
+    });
   }
 );
 
@@ -433,66 +451,68 @@ export const deleteTenantAction = secureAction(
       throw new Error("لا يمكن حذف المستأجر الأساسي للنظام (SYSTEM/default)");
     }
 
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId }
+    return await runWithTenant('SYSTEM', async () => {
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId }
+      });
+
+      if (!tenant) {
+        throw new Error("المستأجر غير موجود أو تم حذفه بالفعل");
+      }
+
+      // Atomic Cascade Purge with Exact Prisma Model Names
+      await prisma.$transaction(async (tx) => {
+        // 1. Transactional & Movement records
+        if (tx.saleItem) await tx.saleItem.deleteMany({ where: { sale: { tenantId } } }).catch(() => {});
+        if (tx.salePayment) await tx.salePayment.deleteMany({ where: { sale: { tenantId } } }).catch(() => {});
+        if (tx.sale) await tx.sale.deleteMany({ where: { tenantId } }).catch(() => {});
+
+        if (tx.purchaseItem) await tx.purchaseItem.deleteMany({ where: { purchaseInvoice: { tenantId } } }).catch(() => {});
+        if (tx.purchaseInvoice) await tx.purchaseInvoice.deleteMany({ where: { tenantId } }).catch(() => {});
+
+        if (tx.ticketPart) await tx.ticketPart.deleteMany({ where: { ticket: { tenantId } } }).catch(() => {});
+        if (tx.ticketNote) await tx.ticketNote.deleteMany({ where: { ticket: { tenantId } } }).catch(() => {});
+        if (tx.ticketCollaborator) await tx.ticketCollaborator.deleteMany({ where: { ticket: { tenantId } } }).catch(() => {});
+        if (tx.ticket) await tx.ticket.deleteMany({ where: { tenantId } }).catch(() => {});
+
+        if (tx.stockMovement) await tx.stockMovement.deleteMany({ where: { tenantId } }).catch(() => {});
+        if (tx.stock) await tx.stock.deleteMany({ where: { tenantId } }).catch(() => {});
+        if (tx.bundleItem) await tx.bundleItem.deleteMany({ where: { parentProduct: { tenantId } } }).catch(() => {});
+        if (tx.product) await tx.product.deleteMany({ where: { tenantId } }).catch(() => {});
+
+        if (tx.customerTransaction) await tx.customerTransaction.deleteMany({ where: { tenantId } }).catch(() => {});
+        if (tx.customer) await tx.customer.deleteMany({ where: { tenantId } }).catch(() => {});
+        if (tx.supplierPayment) await tx.supplierPayment.deleteMany({ where: { tenantId } }).catch(() => {});
+        if (tx.supplier) await tx.supplier.deleteMany({ where: { tenantId } }).catch(() => {});
+        if (tx.partnerTransaction) await tx.partnerTransaction.deleteMany({ where: { tenantId } }).catch(() => {});
+        if (tx.partner) await tx.partner.deleteMany({ where: { tenantId } }).catch(() => {});
+
+        // 2. Financial & Accounting
+        if (tx.journalLine) await tx.journalLine.deleteMany({ where: { journalEntry: { tenantId } } }).catch(() => {});
+        if (tx.journalEntry) await tx.journalEntry.deleteMany({ where: { tenantId } }).catch(() => {});
+        if (tx.transaction) await tx.transaction.deleteMany({ where: { tenantId } }).catch(() => {});
+        if (tx.account) await tx.account.deleteMany({ where: { tenantId } }).catch(() => {});
+        if (tx.treasury) await tx.treasury.deleteMany({ where: { tenantId } }).catch(() => {});
+        if (tx.shiftAdjustment) await tx.shiftAdjustment.deleteMany({ where: { shift: { tenantId } } }).catch(() => {});
+        if (tx.shift) await tx.shift.deleteMany({ where: { tenantId } }).catch(() => {});
+        if (tx.expense) await tx.expense.deleteMany({ where: { tenantId } }).catch(() => {});
+
+        // 3. Organization & Users
+        if (tx.storeSettings) await tx.storeSettings.deleteMany({ where: { tenantId } }).catch(() => {});
+        if (tx.session) await tx.session.deleteMany({ where: { user: { tenantId } } }).catch(() => {});
+        if (tx.user) await tx.user.deleteMany({ where: { tenantId } }).catch(() => {});
+        if (tx.branch) await tx.branch.deleteMany({ where: { tenantId } }).catch(() => {});
+
+        // 4. Licenses & Sequences
+        if (tx.license) await tx.license.deleteMany({ where: { tenantId } }).catch(() => {});
+        if (tx.tenantSequence) await tx.tenantSequence.deleteMany({ where: { tenantId } }).catch(() => {});
+
+        // 5. Tenant Core
+        await tx.tenant.delete({ where: { id: tenantId } });
+      });
+
+      return { success: true, message: `تم حذف المستأجر (${tenant.name}) وبياناته بالكامل بنجاح` };
     });
-
-    if (!tenant) {
-      throw new Error("المستأجر غير موجود أو تم حذفه بالفعل");
-    }
-
-    // Atomic Cascade Purge with Exact Prisma Model Names
-    await prisma.$transaction(async (tx) => {
-      // 1. Transactional & Movement records
-      if (tx.saleItem) await tx.saleItem.deleteMany({ where: { sale: { tenantId } } }).catch(() => {});
-      if (tx.salePayment) await tx.salePayment.deleteMany({ where: { sale: { tenantId } } }).catch(() => {});
-      if (tx.sale) await tx.sale.deleteMany({ where: { tenantId } }).catch(() => {});
-
-      if (tx.purchaseItem) await tx.purchaseItem.deleteMany({ where: { purchaseInvoice: { tenantId } } }).catch(() => {});
-      if (tx.purchaseInvoice) await tx.purchaseInvoice.deleteMany({ where: { tenantId } }).catch(() => {});
-
-      if (tx.ticketPart) await tx.ticketPart.deleteMany({ where: { ticket: { tenantId } } }).catch(() => {});
-      if (tx.ticketNote) await tx.ticketNote.deleteMany({ where: { ticket: { tenantId } } }).catch(() => {});
-      if (tx.ticketCollaborator) await tx.ticketCollaborator.deleteMany({ where: { ticket: { tenantId } } }).catch(() => {});
-      if (tx.ticket) await tx.ticket.deleteMany({ where: { tenantId } }).catch(() => {});
-
-      if (tx.stockMovement) await tx.stockMovement.deleteMany({ where: { tenantId } }).catch(() => {});
-      if (tx.stock) await tx.stock.deleteMany({ where: { tenantId } }).catch(() => {});
-      if (tx.bundleItem) await tx.bundleItem.deleteMany({ where: { parentProduct: { tenantId } } }).catch(() => {});
-      if (tx.product) await tx.product.deleteMany({ where: { tenantId } }).catch(() => {});
-
-      if (tx.customerTransaction) await tx.customerTransaction.deleteMany({ where: { tenantId } }).catch(() => {});
-      if (tx.customer) await tx.customer.deleteMany({ where: { tenantId } }).catch(() => {});
-      if (tx.supplierPayment) await tx.supplierPayment.deleteMany({ where: { tenantId } }).catch(() => {});
-      if (tx.supplier) await tx.supplier.deleteMany({ where: { tenantId } }).catch(() => {});
-      if (tx.partnerTransaction) await tx.partnerTransaction.deleteMany({ where: { tenantId } }).catch(() => {});
-      if (tx.partner) await tx.partner.deleteMany({ where: { tenantId } }).catch(() => {});
-
-      // 2. Financial & Accounting
-      if (tx.journalLine) await tx.journalLine.deleteMany({ where: { journalEntry: { tenantId } } }).catch(() => {});
-      if (tx.journalEntry) await tx.journalEntry.deleteMany({ where: { tenantId } }).catch(() => {});
-      if (tx.transaction) await tx.transaction.deleteMany({ where: { tenantId } }).catch(() => {});
-      if (tx.account) await tx.account.deleteMany({ where: { tenantId } }).catch(() => {});
-      if (tx.treasury) await tx.treasury.deleteMany({ where: { tenantId } }).catch(() => {});
-      if (tx.shiftAdjustment) await tx.shiftAdjustment.deleteMany({ where: { shift: { tenantId } } }).catch(() => {});
-      if (tx.shift) await tx.shift.deleteMany({ where: { tenantId } }).catch(() => {});
-      if (tx.expense) await tx.expense.deleteMany({ where: { tenantId } }).catch(() => {});
-
-      // 3. Organization & Users
-      if (tx.storeSettings) await tx.storeSettings.deleteMany({ where: { tenantId } }).catch(() => {});
-      if (tx.session) await tx.session.deleteMany({ where: { user: { tenantId } } }).catch(() => {});
-      if (tx.user) await tx.user.deleteMany({ where: { tenantId } }).catch(() => {});
-      if (tx.branch) await tx.branch.deleteMany({ where: { tenantId } }).catch(() => {});
-
-      // 4. Licenses & Sequences
-      if (tx.license) await tx.license.deleteMany({ where: { tenantId } }).catch(() => {});
-      if (tx.tenantSequence) await tx.tenantSequence.deleteMany({ where: { tenantId } }).catch(() => {});
-
-      // 5. Tenant Core
-      await tx.tenant.delete({ where: { id: tenantId } });
-    });
-
-    return { success: true, message: `تم حذف المستأجر (${tenant.name}) وبياناته بالكامل بنجاح` };
   }
 );
 

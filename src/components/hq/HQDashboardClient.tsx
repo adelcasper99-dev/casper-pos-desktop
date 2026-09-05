@@ -11,6 +11,7 @@ import { WhatsAppGatewayTab } from "@/components/hq/WhatsAppGatewayTab";
 import { computePipelineMetrics, TenantWithLicense } from "@/lib/hq-metrics";
 
 import { MobileLicenseModal } from "@/components/hq/MobileLicenseModal";
+import { ChangeSuperAdminPasswordModal } from "@/components/hq/ChangeSuperAdminPasswordModal";
 import { Smartphone } from "lucide-react";
 
 interface HQDashboardClientProps {
@@ -66,6 +67,7 @@ export function HQDashboardClient({ tenants, adminMap }: HQDashboardClientProps)
           </p>
         </div>
         <div className="flex items-center gap-2.5 flex-wrap">
+          <ChangeSuperAdminPasswordModal />
           <button
             onClick={() => setIsMobileModalOpen(true)}
             className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-black px-4 py-2.5 rounded-xl text-sm shadow-md shadow-blue-600/20 transition-all cursor-pointer"

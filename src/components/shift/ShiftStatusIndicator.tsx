@@ -308,6 +308,8 @@ export default function ShiftStatusIndicator({ shift, registers = [], csrfToken 
             .plus(shift.totalCashSales || 0)
             .minus(shift.totalExpenses || 0)
             .minus(shift.totalCashRefunds || 0)
+            .plus(shift.crossShiftRefundsReceived || 0)
+            .minus(shift.crossShiftRefundsIssued || 0)
     ).toNumber();
 
     let actualCashNum = 0;

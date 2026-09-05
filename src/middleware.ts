@@ -243,9 +243,12 @@ export const config = {
     matcher: [
         /*
          * Match all request paths except for:
-         * - static files (favicon.ico)
+         * - _next/static (static files)
+         * - _next/image (image optimization files)
+         * - favicon.ico (favicon file)
+         * - images, fonts, and static media files
          */
-         '/((?!favicon.ico).*)',
+        '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|eot)$).*)',
     ],
 };
 

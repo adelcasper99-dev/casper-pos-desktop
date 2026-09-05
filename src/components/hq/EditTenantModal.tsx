@@ -77,7 +77,14 @@ export function EditTenantModal({
   return (
     <>
       <button
-        onClick={() => setIsOpen(true)}
+        onClick={() => {
+          setName(initialName);
+          setAdminUsername(initialAdminUsername);
+          setAdminRole(initialAdminRole || "ADMIN");
+          setNewPassword("");
+          setError("");
+          setIsOpen(true);
+        }}
         className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-bold text-xs flex items-center gap-1 transition-colors px-2 py-1 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-500/10"
       >
         <Edit2 className="w-3.5 h-3.5" />

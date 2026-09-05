@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import GlassModal from '@/components/ui/GlassModal';
-import { XCircle, Loader2, AlertTriangle } from 'lucide-react';
+import { XCircle, Loader2, AlertTriangle, DollarSign } from 'lucide-react';
 import { rejectTicket } from '@/actions/ticket-actions';
 import { useTranslations } from '@/lib/i18n-mock';
 import { useCSRF } from "@/contexts/CSRFContext";
@@ -21,6 +21,7 @@ interface RejectTicketModalProps {
         deviceBrand?: string;
         deviceModel?: string;
         status?: string;
+        amountPaid?: number;
         issueDescription?: string | null;
     };
     onSuccess?: () => void;
@@ -31,6 +32,7 @@ export default function RejectTicketModal({ isOpen, onClose, ticket, onSuccess }
     const { token: csrfToken } = useCSRF();
     const autoNotify = useWhatsAppAutoNotify();
     const [reason, setReason] = useState('');
+    const [refundDeposit, setRefundDeposit] = useState(true);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [settings, setSettings] = useState<any>(null);
@@ -38,6 +40,7 @@ export default function RejectTicketModal({ isOpen, onClose, ticket, onSuccess }
     useEffect(() => {
         if (isOpen) {
             getEffectiveStoreSettings().then(setSettings);
+            setRefundDeposit(true);
         }
     }, [isOpen]);
 
@@ -56,9 +59,11 @@ export default function RejectTicketModal({ isOpen, onClose, ticket, onSuccess }
         setError(null);
 
         try {
+            const hasDeposit = (ticket.amountPaid ?? 0) > 0;
             const res = await rejectTicket({
                 ticketId: ticket.id,
                 reason: reason,
+                refundDeposit: hasDeposit ? refundDeposit : false,
                 csrfToken: csrfToken ?? undefined
             });
 
@@ -135,18 +140,42 @@ export default function RejectTicketModal({ isOpen, onClose, ticket, onSuccess }
                     </div>
                 </div>
 
+                {/* Deposit Refund Banner & Checkbox */}
+                {ticket.amountPaid !== undefined && ticket.amountPaid > 0 && (
+                    <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border border-amber-500/30 flex flex-col gap-2.5 mb-4 text-right" dir="rtl">
+                        <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-amber-500 dark:text-amber-400 flex items-center gap-1.5">
+                                <DollarSign className="w-4 h-4" />
+                                عربون مسجل على التذكرة:
+                            </span>
+                            <span className="font-mono font-black text-xs text-emerald-500 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                                {ticket.amountPaid.toLocaleString()} ج.م
+                            </span>
+                        </div>
+                        <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-foreground select-none pt-1 border-t border-amber-500/20">
+                            <input 
+                                type="checkbox" 
+                                checked={refundDeposit} 
+                                onChange={(e) => setRefundDeposit(e.target.checked)}
+                                className="rounded border-amber-500 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                            />
+                            <span>صرف واسترداد العربون للعميل نقداً من الدرج فوراً</span>
+                        </label>
+                    </div>
+                )}
+
                 {/* Warning */}
-                <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 mb-4">
-                    <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-amber-200">
+                <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 mb-4 text-right" dir="rtl">
+                    <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-200">
                         بعد رفض التذكرة، لن يمكن تغيير حالتها إلا عن طريق المرتجع.
                         تأكد من صحة هذا الإجراء.
                     </p>
                 </div>
 
                 {/* Reason Input */}
-                <div className="mb-4">
-                    <label className="block text-sm font-medium text-zinc-300 mb-2">
+                <div className="mb-4 text-right" dir="rtl">
+                    <label className="block text-xs font-medium text-zinc-300 mb-1.5">
                         سبب الرفض <span className="text-red-500">*</span>
                     </label>
                     <textarea
@@ -156,11 +185,11 @@ export default function RejectTicketModal({ isOpen, onClose, ticket, onSuccess }
                             setError(null);
                         }}
                         placeholder="يرجى إدخال سبب رفض التذكرة..."
-                        className="w-full h-24 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 resize-none"
+                        className="w-full h-20 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 resize-none text-xs"
                         disabled={loading}
                     />
                     {error && (
-                        <p className="text-red-500 text-sm mt-1">{error}</p>
+                        <p className="text-red-500 text-xs mt-1">{error}</p>
                     )}
                 </div>
 

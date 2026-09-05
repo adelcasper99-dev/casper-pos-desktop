@@ -220,4 +220,42 @@ describe('Multi-Tenant Isolation & RLS Security', () => {
             expect(allUsers.length).toBe(2);
         });
     });
+
+    /**
+     * TEST: Security Guardrail - Reject SYSTEM / HQ Server Actions when caller is not Super Admin
+     */
+    it('should reject SYSTEM context operations and HQ actions when caller is not Super Admin', async () => {
+        const { changeSuperAdminPassword } = await import('@/actions/super-admin');
+        const { provisionNewTenant, editTenant } = await import('@/actions/hq-tenant-actions');
+
+        // 1. Calling changeSuperAdminPassword without Super Admin session MUST fail
+        const changePassRes = await changeSuperAdminPassword({
+            currentPassword: 'wrong-or-unauthorized',
+            newPassword: 'NewSecurePassword123!',
+            confirmPassword: 'NewSecurePassword123!'
+        });
+        expect(changePassRes.success).toBe(false);
+        expect(changePassRes.error).toBeDefined();
+
+        // 2. Calling provisionNewTenant without Super Admin session MUST fail
+        const provisionRes = await provisionNewTenant({
+            name: 'Unauthorized Tenant',
+            domain: 'unauthorized-tenant',
+            adminUsername: 'hacker',
+            adminPassword: 'password123',
+            adminRole: 'ADMIN',
+            duration: '14_DAYS'
+        });
+        expect(provisionRes.success).toBe(false);
+        expect(provisionRes.error).toBeDefined();
+
+        // 3. Calling editTenant without Super Admin session MUST fail
+        const editRes = await editTenant({
+            tenantId: 'tenant-A',
+            name: 'Hacked Name',
+            domain: 'tenant-A'
+        });
+        expect(editRes.success).toBe(false);
+        expect(editRes.error).toBeDefined();
+    });
 });

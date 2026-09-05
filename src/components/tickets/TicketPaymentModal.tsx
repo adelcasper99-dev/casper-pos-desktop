@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "@/lib/i18n-mock";
 import { formatCurrency } from "@/lib/utils";
+import Decimal from "decimal.js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -88,9 +89,10 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
         };
         if (isOpen) {
             loadSettings();
+            const isUnfinishedTicket = !['COMPLETED', 'READY_AT_BRANCH', 'DELIVERED', 'PAID_DELIVERED'].includes(ticket.status);
             setAmount(isWarrantyReturn || netDelta < 0 ? netDelta.toString() : balanceDue.toString());
             setPaymentMethod("CASH");
-            setPaymentType("PAYMENT");
+            setPaymentType(isUnfinishedTicket ? "DEPOSIT" : "PAYMENT");
             setReference("");
             setSuccess(false);
             setWarrantyEnabled(true);
@@ -394,13 +396,12 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
             </GlassModal>
         );
     }
-
-    return (
+return (
         <GlassModal
             isOpen={isOpen}
             onClose={onClose}
-            title={t('confirmPayment')}
-            className="max-w-md"
+            title={!['COMPLETED', 'READY_AT_BRANCH', 'DELIVERED', 'PAID_DELIVERED'].includes(ticket.status) ? "تسجيل عربون / دفعة مقدمة" : (t('title') || "تسجيل دفعة")}
+            className="max-w-xl"
         >
             <div className="space-y-5 py-4 overflow-y-auto max-h-[80vh] scrollbar-hide">
                 {/* Due Amount Highlight */}
@@ -460,12 +461,19 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                             <div className="grid grid-cols-2 gap-2">
                                 <div className="p-2 rounded-lg bg-cyan-500/5 dark:bg-white/5 border border-cyan-500/10 dark:border-white/5 flex flex-col items-center">
                                     <span className="text-[9px] text-cyan-700 dark:text-zinc-500 uppercase font-bold">{t('laborPool') || "وعاء المصنعية"}</span>
-                                    <span className="text-xs font-black text-cyan-950 dark:text-white">{formatCurrency(totalNewPrice - (ticket.parts?.reduce((s:any, p:any) => s + Number(p.price), 0) || 0))}</span>
+                                    <span className="text-xs font-black text-cyan-950 dark:text-white">
+                                        {formatCurrency(new Decimal(totalNewPrice).minus(ticket.parts?.reduce((s: number, p: { price?: number | string | null }) => s + Number(p.price || 0), 0) || 0).toNumber())}
+                                    </span>
                                 </div>
                                 <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10 flex flex-col items-center text-emerald-600 dark:text-emerald-400">
                                     <span className="text-[9px] uppercase font-bold text-emerald-700 dark:text-zinc-500">{t('techShare') || "نصيب المهندس"}</span>
                                     <span className="text-xs font-black">
-                                        {formatCurrency((totalNewPrice - (ticket.parts?.reduce((s:any, p:any) => s + Number(p.price), 0) || 0)) * (Number(ticket.commissionRate || 0) / 100))}
+                                        {formatCurrency(
+                                            new Decimal(totalNewPrice)
+                                                .minus(ticket.parts?.reduce((s: number, p: { price?: number | string | null }) => s + Number(p.price || 0), 0) || 0)
+                                                .mul(new Decimal(ticket.commissionRate || 0).div(100))
+                                                .toNumber()
+                                        )}
                                     </span>
                                 </div>
                             </div>
@@ -746,7 +754,9 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                         {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
                             netDelta < 0 ? <ArrowRightLeft className="w-5 h-5 mr-2" /> : <CreditCard className="w-5 h-5 mr-2" />
                         )}
-                        {(isWarrantyReturn || currentPaid > 0 || netDelta < 0) ? (
+                        {!['COMPLETED', 'READY_AT_BRANCH', 'DELIVERED', 'PAID_DELIVERED'].includes(ticket.status) ? (
+                            "تأكيد تسجيل العربون / الدفعة المقدمة"
+                        ) : (isWarrantyReturn || currentPaid > 0 || netDelta < 0) ? (
                             netDelta > 0 ? (t('collectDifference') || "Collect Difference").toUpperCase() :
                                 netDelta < 0 ? (t('refundCustomer') || "Refund Customer").toUpperCase() :
                                     (t('settleAndClose') || "Settle & Close").toUpperCase()
@@ -759,6 +769,6 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
 }
 
 // Helper icons mapping for SearchableSelect can be added if needed, but here we use simple ones
-function UserCheck(props: any) {
+function UserCheck(props: React.SVGProps<SVGSVGElement>) {
     return <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="m16 11 2 2 4-4" /></svg>
 }

@@ -32,7 +32,7 @@ export default function Dashboard() {
     const [metrics, setMetrics] = useState<FinancialDashboardMetrics | null>(null);
     const [loading, setLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+    const [lastUpdated, setLastUpdated] = useState<Date | undefined>(undefined);
     const [showShiftPrompt, setShowShiftPrompt] = useState(false);
     const shiftChecked = useRef(false);
 

@@ -1,4 +1,5 @@
 import { prisma, isPostgres } from "@/lib/prisma";
+import { runWithTenant } from "@/lib/prisma-tenant-extension";
 import { HQDashboardClient } from "@/components/hq/HQDashboardClient";
 
 export default async function HQDashboard() {
@@ -16,22 +17,24 @@ export default async function HQDashboard() {
     );
   }
 
-  const [tenants, primaryUsers] = await Promise.all([
-    prisma.tenant.findMany({
-      include: {
-        licenses: true
-      },
-      orderBy: { createdAt: 'desc' }
-    }),
-    prisma.user.findMany({
-      select: {
-        tenantId: true,
-        username: true,
-        roleStr: true
-      },
-      orderBy: { createdAt: 'asc' }
-    })
-  ]);
+  const [tenants, primaryUsers] = await runWithTenant('SYSTEM', async () => {
+    return await Promise.all([
+      prisma.tenant.findMany({
+        include: {
+          licenses: true
+        },
+        orderBy: { createdAt: 'desc' }
+      }),
+      prisma.user.findMany({
+        select: {
+          tenantId: true,
+          username: true,
+          roleStr: true
+        },
+        orderBy: { createdAt: 'asc' }
+      })
+    ]);
+  });
 
   const adminMap = new Map<string, { username: string, roleStr: string }>();
   primaryUsers.forEach(u => {

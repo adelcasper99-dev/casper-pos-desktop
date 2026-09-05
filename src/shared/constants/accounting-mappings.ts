@@ -67,6 +67,7 @@ export const GL = {
         PAYABLES: '2000', // Supplier Accounts
         VAT_OUTPUT: '2100',
         STORE_CREDIT: '2150',
+        CUSTOMER_DEPOSITS: '2150',
         ACCRUED_SALARIES: '2200',
     },
     EQUITY: {

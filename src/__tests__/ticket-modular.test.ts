@@ -28,6 +28,9 @@ vi.mock('../lib/prisma', () => ({
         customer: {
             upsert: vi.fn(),
             findUnique: vi.fn(),
+            findFirst: vi.fn().mockResolvedValue({ id: 'cust-1' }),
+            create: vi.fn().mockResolvedValue({ id: 'cust-1' }),
+            update: vi.fn().mockResolvedValue({ id: 'cust-1' }),
         },
         technician: {
             findUnique: vi.fn(),
@@ -160,7 +163,7 @@ describe('Ticket Modular Actions', () => {
     describe('createTicket', () => {
         it('should create a ticket with B1- branch prefix', async () => {
             (prisma.$queryRaw as any).mockResolvedValue([{ value: 1 }]);
-            (prisma.customer.upsert as any).mockResolvedValue({ id: 'cust-1' });
+            (prisma.customer.findFirst as any).mockResolvedValue({ id: 'cust-1' });
             (prisma.ticket.create as any).mockResolvedValue({ id: 't-1', barcode: 'B1-T001' });
             (prisma.shift.findUnique as any).mockResolvedValue({ id: 'shift-1' });
 
@@ -192,7 +195,7 @@ describe('Ticket Modular Actions', () => {
             } as any);
 
             (prisma.$queryRaw as any).mockResolvedValue([{ value: 1 }]);
-            (prisma.customer.upsert as any).mockResolvedValue({ id: 'cust-1' });
+            (prisma.customer.findFirst as any).mockResolvedValue({ id: 'cust-1' });
             (prisma.ticket.create as any).mockResolvedValue({ id: 't-1', barcode: 'MAIN-T001' });
             (prisma.shift.findUnique as any).mockResolvedValue({ id: 'shift-1' });
 

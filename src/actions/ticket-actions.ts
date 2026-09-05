@@ -391,13 +391,29 @@ export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSc
                 else if (phoneCheck.usedBy === 'SUPPLIER') clientSupplierId = phoneCheck.entityId;
                 else if (phoneCheck.usedBy === 'CUSTOMER') customerId = phoneCheck.entityId;
             } else if (!customerId) {
-                // Atomic Upsert to handle race conditions
-                const customer = await tx.customer.upsert({
-                    where: { phone: normalizedPhone },
-                    update: { name: data.customerName }, // Refresh name if it matches phone
-                    create: { name: data.customerName, phone: normalizedPhone, balance: 0 }
+                // Find existing customer by phone within tenant context or create new
+                const existingCustomer = await tx.customer.findFirst({
+                    where: { phone: normalizedPhone }
                 });
-                customerId = customer.id;
+
+                if (existingCustomer) {
+                    if (data.customerName && existingCustomer.name !== data.customerName) {
+                        await tx.customer.update({
+                            where: { id: existingCustomer.id },
+                            data: { name: data.customerName }
+                        });
+                    }
+                    customerId = existingCustomer.id;
+                } else {
+                    const newCustomer = await tx.customer.create({
+                        data: {
+                            name: data.customerName,
+                            phone: normalizedPhone,
+                            balance: 0
+                        }
+                    });
+                    customerId = newCustomer.id;
+                }
             }
         }
 
@@ -901,9 +917,11 @@ export const undoTicketStatus = secureAction(async (data: {
 export const rejectTicket = secureAction(async (data: {
     ticketId: string;
     reason: string;
+    refundDeposit?: boolean;
+    refundMethod?: 'CASH' | 'ACCOUNT';
     csrfToken?: string;
 }) => {
-    const { ticketId, reason } = data;
+    const { ticketId, reason, refundDeposit = false, refundMethod = 'CASH' } = data;
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
 
@@ -951,6 +969,145 @@ export const rejectTicket = secureAction(async (data: {
             }
         });
 
+        // Handle Automatic Deposit Refund if requested and deposit exists
+        const amountPaidDec = new Decimal(existingTicket.amountPaid?.toString() || '0');
+        if (refundDeposit && amountPaidDec.gt(0)) {
+            const shiftResult = await getCurrentShift(user.id);
+            if (!shiftResult.success || !shiftResult.shift) {
+                throw new Error("لا توجد وردية مفتوحة لصرف العربون من الدرج. يرجى فتح وردية أولاً.");
+            }
+            const currentShift = shiftResult.shift;
+
+            if (refundMethod === 'CASH') {
+                let defaultTreasuryId: string | null = null;
+                if (user.branchId) {
+                    const defaultTreasury = await tx.treasury.findFirst({
+                        where: { branchId: user.branchId, isDefault: true }
+                    });
+                    if (defaultTreasury) defaultTreasuryId = defaultTreasury.id;
+                }
+                if (!defaultTreasuryId) {
+                    throw new Error("لا يوجد صندوق افتراضي لهذا الفرع.");
+                }
+
+                const treasury = await tx.treasury.findUnique({ where: { id: defaultTreasuryId } });
+                if (treasury && new Decimal(treasury.balance?.toString() || '0').lt(amountPaidDec)) {
+                    throw new Error(`رصيد الدرج (${treasury.balance}) غير كافٍ لصرف العربون (${amountPaidDec}).`);
+                }
+
+                // Cross-shift check
+                const priorPayments = await tx.repairPayment.findMany({
+                    where: { ticketId: existingTicket.id, type: { in: ['DEPOSIT', 'PAYMENT'] } },
+                    orderBy: { recordedAt: 'asc' }
+                });
+                const hasPriorShiftDeposit = priorPayments.some(p => new Date(p.recordedAt) < new Date(currentShift.openedAt));
+
+                if (hasPriorShiftDeposit) {
+                    await tx.shift.update({
+                        where: { id: currentShift.id },
+                        data: {
+                            crossShiftRefundsIssued: { increment: amountPaidDec },
+                            totalRefunds: { increment: amountPaidDec }
+                        }
+                    });
+                } else {
+                    await tx.shift.update({
+                        where: { id: currentShift.id },
+                        data: {
+                            totalCashRefunds: { increment: amountPaidDec },
+                            totalTicketRevenueCash: { increment: amountPaidDec.negated() },
+                            totalRefunds: { increment: amountPaidDec }
+                        }
+                    });
+                }
+
+                await tx.transaction.create({
+                    data: {
+                        type: 'EXPENSE',
+                        amount: amountPaidDec,
+                        paymentMethod: 'CASH',
+                        description: `صرف واسترداد عربون تذكرة #${existingTicket.barcode} للعميل (رفض التذكرة)`,
+                        shiftId: currentShift.id,
+                        treasuryId: defaultTreasuryId
+                    }
+                });
+
+                await tx.treasury.update({
+                    where: { id: defaultTreasuryId },
+                    data: { balance: { decrement: amountPaidDec } }
+                });
+            } else if (refundMethod === 'ACCOUNT' && existingTicket.customerId) {
+                await tx.customer.update({
+                    where: { id: existingTicket.customerId },
+                    data: { balance: { increment: amountPaidDec } }
+                });
+                await tx.customerTransaction.create({
+                    data: {
+                        customerId: existingTicket.customerId,
+                        type: 'CREDIT',
+                        amount: amountPaidDec,
+                        description: `إيداع عربون مسترد لتذكرة #${existingTicket.barcode} في الحساب (رفض التذكرة)`,
+                        reference: existingTicket.id,
+                        createdBy: user.id,
+                        branchId: user.branchId || undefined
+                    }
+                });
+            }
+
+            const refundIdempotencyKey = `REFUND_REJECT_${existingTicket.id}_${amountPaidDec.toFixed(2)}`;
+            await tx.repairPayment.create({
+                data: {
+                    ticketId: existingTicket.id,
+                    type: 'REFUND',
+                    amount: amountPaidDec.negated(),
+                    method: refundMethod,
+                    reference: refundIdempotencyKey,
+                    recordedBy: user.name || user.username || 'System'
+                }
+            });
+
+            // Double-entry GL 2150 relief
+            await AccountingEngine.recordTransaction({
+                description: `رد عربون تذكرة #${existingTicket.barcode} عند رفض الصيانة`,
+                reference: existingTicket.id,
+                ticketId: existingTicket.id,
+                branchId: user.branchId ?? undefined,
+                idempotencyKey: refundIdempotencyKey,
+                lines: [
+                    {
+                        accountCode: GL.LIABILITIES.CUSTOMER_DEPOSITS,
+                        debit: amountPaidDec,
+                        credit: new Decimal(0),
+                        description: `إخلاء ذمة عربون العميل عند رفض تذكرة #${existingTicket.barcode}`
+                    },
+                    {
+                        accountCode: refundMethod === 'ACCOUNT' ? GL.ASSETS.RECEIVABLES : GL.ASSETS.CASH,
+                        debit: new Decimal(0),
+                        credit: amountPaidDec,
+                        description: refundMethod === 'ACCOUNT' ? 'تخفيض حساب العميل' : 'صرف نقدي من الدرج'
+                    }
+                ]
+            }, tx);
+
+            // Set amountPaid to 0 on ticket
+            await tx.ticket.update({
+                where: { id: ticketId },
+                data: {
+                    amountPaid: new Decimal(0),
+                    paymentStatus: 'unpaid'
+                }
+            });
+
+            await tx.ticketNote.create({
+                data: {
+                    ticketId,
+                    text: `تم صرف واسترداد العربون المسجل (${amountPaidDec} ج.م) للعميل نقداً بمناسبة رفض التذكرة.`,
+                    author: user.name || user.username || "System",
+                    isInternal: true
+                }
+            });
+        }
+
         // Create audit log
         await tx.auditLog.create({
             data: {
@@ -961,6 +1118,7 @@ export const rejectTicket = secureAction(async (data: {
                 newData: JSON.stringify({
                     barcode: ticket.barcode,
                     reason: reason.trim(),
+                    refundedDeposit: refundDeposit ? amountPaidDec.toString() : null,
                     previousStatus: existingTicket.status
                 }),
                 branchId: user.branchId
@@ -2205,11 +2363,15 @@ export const processTicketPayment = secureAction(async (data: {
 
     if (!ticket) throw new Error('Ticket not found');
 
-    // Relaxed validation: Allow 0 for warranty returns or reworks (even swap)
+    const previousPaid = new Decimal(ticket.amountPaid || 0);
+    const repairPrice = new Decimal(ticket.repairPrice || 0);
+
+    // Relaxed validation: Allow 0 for warranty returns, reworks, or fully prepaid tickets ready for delivery
     const isActuallyRefund = paymentType === 'REFUND' || amountDec.lt(0);
     const isWarrantyEvenSwap = (ticket.isWarrantyReturn || ticket.status === 'RETURNED_FOR_REFIX') && amountDec.isZero();
+    const isPrepaidDelivery = amountDec.isZero() && previousPaid.gte(repairPrice) && repairPrice.gt(0);
 
-    if (!isActuallyRefund && !isWarrantyEvenSwap && amountDec.lte(0)) {
+    if (!isActuallyRefund && !isWarrantyEvenSwap && !isPrepaidDelivery && amountDec.lte(0)) {
         throw new Error('Payment amount must be greater than zero');
     }
 
@@ -2226,12 +2388,7 @@ export const processTicketPayment = secureAction(async (data: {
     }
     const currentShift = shiftResult.shift;
 
-
-
     const inheritedCredit = (ticket.isWarrantyReturn && ticket.parentTicket) ? new Decimal(ticket.parentTicket.amountPaid || 0) : new Decimal(0);
-    const previousPaid = new Decimal(ticket.amountPaid || 0);
-    const repairPrice = new Decimal(ticket.repairPrice || 0);
-
     let effectiveAmount = amountDec;
     
     // Absorption Logic: If this is a warranty return and we haven't absorbed the credit yet (amountPaid === 0),
@@ -2311,11 +2468,13 @@ export const processTicketPayment = secureAction(async (data: {
         }
 
         let paymentRecordId: string | null = null;
+        const isCompletedOrReadyEarly = ['COMPLETED', 'READY_AT_BRANCH', 'DELIVERED'].includes(ticket.status);
+        const isDepositPayment = !isCompletedOrReadyEarly || paymentType === 'DEPOSIT';
         if (!effectiveAmount.isZero()) {
             const paymentRecord = await tx.repairPayment.create({
                 data: {
                     ticketId: ticket.id,
-                    type: effectiveAmount.lt(0) ? 'REFUND' : paymentType,
+                    type: effectiveAmount.lt(0) ? 'REFUND' : (isDepositPayment ? 'DEPOSIT' : paymentType),
                     amount: effectiveAmount,
                     method: paymentMethod,
                     reference: reference || null,
@@ -2323,6 +2482,21 @@ export const processTicketPayment = secureAction(async (data: {
                 }
             });
             paymentRecordId = paymentRecord.id;
+
+            // 💰 [GAAP GL 2150] If taking an advance deposit, credit Customer Deposits liability (not revenue yet)
+            if (!effectiveAmount.lt(0) && isDepositPayment) {
+                const assetAccount = PAYMENT_METHOD_GL_MAP[paymentMethod] || GL.ASSETS.CASH;
+                await AccountingEngine.recordTransaction({
+                    description: `عربون صيانة تذكرة #${ticket.barcode}`,
+                    reference: ticket.id,
+                    branchId: currentUser?.branchId ?? undefined,
+                    idempotencyKey: `TICKET_DEP_${ticket.id}_${paymentRecord.id}`,
+                    lines: [
+                        { accountCode: assetAccount, debit: effectiveAmount, credit: 0, description: `استلام عربون صيانة (${paymentMethod})` },
+                        { accountCode: GL.LIABILITIES.CUSTOMER_DEPOSITS, debit: 0, credit: effectiveAmount, description: "أمانات وعرابين عملاء صيانة" }
+                    ]
+                }, tx);
+            }
         }
 
         const effectiveCustomerId = actualCustomerId || (paymentMethod === 'ACCOUNT' ? customerId : null);
@@ -2361,14 +2535,18 @@ export const processTicketPayment = secureAction(async (data: {
             commissionAmount: Decimal;
             netProfit: Decimal;
         }> = {};
-        if (paymentStatus === 'paid' && paymentType === 'PAYMENT') {
+        // Only complete delivery and distribute profit if the ticket was already completed/ready
+        const isCompletedOrReady = ['COMPLETED', 'READY_AT_BRANCH', 'DELIVERED'].includes(ticket.status);
+        const isFinalDeliveryPayment = isCompletedOrReady && paymentStatus === 'paid' && paymentType === 'PAYMENT';
+
+        if (isFinalDeliveryPayment) {
             const activeParts = await tx.ticketPart.findMany({
                 where: { ticketId: ticket.id, status: 'ACTIVE' }
             });
 
             const techBillingPrice = activeParts.reduce((sum, p) => sum.add(new Decimal(p.transferPrice?.toString() || p.cost?.toString() || 0)), new Decimal(0));
             const partCostPrice = activeParts.reduce((sum, p) => sum.add(new Decimal(p.baseCostPrice?.toString() || p.cost?.toString() || 0)), new Decimal(0));
-            const finalCustomerPrice = newTotalPaid; // Assume total paid is final price
+            const finalCustomerPrice = repairPrice.gt(0) ? repairPrice : newTotalPaid;
             const laborPoolAmount = finalCustomerPrice.minus(techBillingPrice);
             
             // Re-calculate commission based on the new labor pool
@@ -2401,18 +2579,39 @@ export const processTicketPayment = secureAction(async (data: {
                 netProfit: centerLaborProfit.plus(centerPartProfit)
             };
 
-            // --- New: Record Balanced Journal Entry ---
+            // 💰 [GAAP GL 2150 Relief] Relieve advance customer deposits and recognize revenue
+            const previousDepositPaid = previousPaid;
+            const depositRelieved = Decimal.min(finalCustomerPrice, previousDepositPaid);
+            const freshPaymentRelieved = finalCustomerPrice.minus(depositRelieved);
+
+            const distributionLines = [
+                // If deposit was previously paid, debit GL 2150 to clear the liability
+                ...(depositRelieved.gt(0) ? [{
+                    accountCode: GL.LIABILITIES.CUSTOMER_DEPOSITS,
+                    debit: depositRelieved,
+                    credit: new Decimal(0),
+                    description: `إخلاء ذمة عربون تذكرة #${ticket.barcode}`
+                }] : []),
+                // If fresh payment made at delivery, debit the payment method asset
+                ...(freshPaymentRelieved.gt(0) ? [{
+                    accountCode: PAYMENT_METHOD_GL_MAP[paymentMethod] || GL.ASSETS.CASH,
+                    debit: freshPaymentRelieved,
+                    credit: new Decimal(0),
+                    description: `سداد تسليم تذكرة #${ticket.barcode}`
+                }] : []),
+                // Credits: parts, tech commission, and center profit
+                { accountCode: GL.REVENUE.SALES, debit: new Decimal(0), credit: techBillingPrice, description: "Parts Revenue Dist" },
+                { accountCode: GL.LIABILITIES.ACCRUED_SALARIES, debit: new Decimal(0), credit: techCommissionAmount, description: "Technician Commission Accrued" },
+                { accountCode: GL.REVENUE.SALES, debit: new Decimal(0), credit: centerLaborProfit, description: "Center Labor Profit realized" }
+            ];
+
+            // --- Record Balanced Journal Entry ---
             await AccountingEngine.recordTransaction({
                 description: `Maintenance Distribution: Ticket #${ticket.barcode}`,
                 reference: ticket.id,
                 branchId: currentUser?.branchId ?? undefined,
                 idempotencyKey: `TICKET_DIST_${ticket.id}`,
-                lines: [
-                    { accountCode: GL.REVENUE.SERVICE, debit: finalCustomerPrice, credit: 0, description: "Service Revenue Reclassification" },
-                    { accountCode: GL.REVENUE.SALES, debit: 0, credit: techBillingPrice, description: "Parts Revenue Dist" },
-                    { accountCode: GL.LIABILITIES.ACCRUED_SALARIES, debit: 0, credit: techCommissionAmount, description: "Technician Commission Accrued" },
-                    { accountCode: GL.REVENUE.SALES, debit: 0, credit: centerLaborProfit, description: "Center Labor Profit realized" }
-                ]
+                lines: distributionLines
             }, tx);
         }
 
@@ -2422,8 +2621,8 @@ export const processTicketPayment = secureAction(async (data: {
                 amountPaid: newTotalPaid,
                 paymentStatus,
                 paymentMethod: paymentMethod,
-                // Automatically close the ticket if fully paid
-                ...(paymentStatus === 'paid' && paymentType === 'PAYMENT' ? { 
+                // Automatically close the ticket only if fully paid AND it was already completed/ready for delivery
+                ...(isFinalDeliveryPayment ? { 
                     status: 'PAID_DELIVERED',
                     deliveredAt: new Date(),
                     warrantyExpiryDate: (function() {
@@ -2753,6 +2952,327 @@ export const processTicketPayment = secureAction(async (data: {
         message: `Payment of ${effectiveAmount} recorded`
     };
 }, { permission: PERMISSIONS.TICKET_PAY });
+
+/**
+ * Refund excess advance deposit to customer (from cash drawer or customer account credit)
+ */
+export const refundTicketExcessToCustomer = secureAction(async (data: {
+    ticketId: string;
+    amount?: number;
+    method?: 'CASH' | 'ACCOUNT';
+    idempotencyKey?: string;
+    csrfToken?: string;
+}) => {
+    const { ticketId, amount, method = 'CASH' } = data;
+    const currentUser = await getCurrentUser();
+    if (!currentUser) throw new Error("Authentication required");
+
+    const shiftResult = await getCurrentShiftInternal({ userId: currentUser.id });
+    if (!shiftResult.shift || shiftResult.shift.status !== 'OPEN') {
+        throw new Error("لا توجد وردية مفتوحة. يرجى فتح وردية أولاً لصرف المبلغ من الدرج.");
+    }
+    const currentShift = shiftResult.shift;
+
+    const ticket = await prisma.ticket.findFirst({
+        where: { OR: [{ id: ticketId }, { barcode: ticketId }] },
+        include: { customer: true }
+    });
+    if (!ticket) throw new Error("التذكرة غير موجودة.");
+
+    const repairPrice = new Decimal(ticket.repairPrice?.toString() || '0');
+    const amountPaid = new Decimal(ticket.amountPaid?.toString() || '0');
+    const isCancelledOrRejected = ['REJECTED', 'CANCELLED', 'VOIDED'].includes(ticket.status);
+    const excess = isCancelledOrRejected ? amountPaid : amountPaid.minus(repairPrice);
+
+    if (amountPaid.lte(0)) {
+        throw new Error("لا يوجد أي مبالغ مدفوعة أو عربون مسجل على هذه التذكرة لاسترداده.");
+    }
+
+    const refundAmount = amount ? new Decimal(amount) : (excess.gt(0) ? excess : amountPaid);
+    if (refundAmount.lte(0)) {
+        throw new Error("يجب تحديد مبلغ أكبر من صفر.");
+    }
+    if (refundAmount.gt(amountPaid)) {
+        throw new Error(`مبلغ الصرف (${refundAmount}) أكبر من إجمالي المبلغ المدفوع على التذكرة (${amountPaid}).`);
+    }
+
+    // Deterministic Idempotency Key tied to the exact pre-settlement financial state
+    const resolvedIdempotencyKey = data.idempotencyKey || (
+        excess.gt(0) && (!amount || new Decimal(amount).eq(excess))
+            ? `REFUND_EXCESS_${ticket.id}_${amountPaid.toFixed(2)}_${repairPrice.toFixed(2)}`
+            : `REFUND_DEPOSIT_${ticket.id}_${amountPaid.toFixed(2)}_${refundAmount.toFixed(2)}`
+    );
+
+    const transactionResult = await prisma.$transaction(async (tx) => {
+        // Check for existing idempotent journal entry
+        const existingJe = await tx.journalEntry.findUnique({
+            where: { idempotencyKey: resolvedIdempotencyKey }
+        });
+        if (existingJe) {
+            console.warn(`[refundTicketExcessToCustomer] Idempotency collision rescued: ${resolvedIdempotencyKey}`);
+            return ticket;
+        }
+
+        const newAmountPaid = amountPaid.minus(refundAmount);
+        let paymentStatus = 'partial';
+        if (newAmountPaid.gte(repairPrice) && repairPrice.gt(0)) {
+            paymentStatus = 'paid';
+        } else if (newAmountPaid.isZero()) {
+            paymentStatus = 'unpaid';
+        }
+
+        // 1. Update ticket financials
+        const updatedTicket = await tx.ticket.update({
+            where: { id: ticket.id },
+            data: {
+                amountPaid: newAmountPaid,
+                paymentStatus
+            }
+        });
+
+        // 2. Create repair payment record for refund
+        const paymentRecord = await tx.repairPayment.create({
+            data: {
+                ticketId: ticket.id,
+                type: 'REFUND',
+                amount: refundAmount.negated(),
+                method,
+                reference: resolvedIdempotencyKey,
+                recordedBy: currentUser.name || currentUser.username || 'System'
+            }
+        });
+
+        // 3. Cash Drawer / Treasury / Shift Tracking
+        if (method === 'CASH') {
+            let defaultTreasuryId: string | null = null;
+            if (currentUser.branchId) {
+                const defaultTreasury = await tx.treasury.findFirst({
+                    where: { branchId: currentUser.branchId, isDefault: true }
+                });
+                if (defaultTreasury) defaultTreasuryId = defaultTreasury.id;
+            }
+
+            if (!defaultTreasuryId) {
+                throw new Error("لا يوجد صندوق افتراضي لهذا الفرع.");
+            }
+
+            const treasury = await tx.treasury.findUnique({ where: { id: defaultTreasuryId } });
+            if (treasury && new Decimal(treasury.balance?.toString() || '0').lt(refundAmount)) {
+                throw new Error(`رصيد الدرج (${treasury.balance}) غير كافٍ لصرف المبلغ (${refundAmount}).`);
+            }
+
+            // Cross-Shift Reconciliation Check: Was the deposit taken in a prior closed shift?
+            const priorPayments = await tx.repairPayment.findMany({
+                where: { ticketId: ticket.id, type: { in: ['DEPOSIT', 'PAYMENT'] } },
+                orderBy: { recordedAt: 'asc' }
+            });
+            const hasPriorShiftDeposit = priorPayments.some(p => new Date(p.recordedAt) < new Date(currentShift.openedAt));
+
+            if (hasPriorShiftDeposit) {
+                // Prior shift deposit: update crossShiftRefundsIssued so current shift sales don't become negative
+                await tx.shift.update({
+                    where: { id: currentShift.id },
+                    data: {
+                        crossShiftRefundsIssued: { increment: refundAmount },
+                        totalRefunds: { increment: refundAmount }
+                    }
+                });
+            } else {
+                // Same shift: normal cash refund decrement
+                await tx.shift.update({
+                    where: { id: currentShift.id },
+                    data: {
+                        totalCashRefunds: { increment: refundAmount },
+                        totalTicketRevenueCash: { increment: refundAmount.negated() },
+                        totalRefunds: { increment: refundAmount }
+                    }
+                });
+            }
+
+            // Create Treasury Expense Transaction
+            await tx.transaction.create({
+                data: {
+                    type: 'EXPENSE',
+                    amount: refundAmount,
+                    paymentMethod: 'CASH',
+                    description: `صرف متبقي تذكرة #${ticket.barcode} للعميل`,
+                    shiftId: currentShift.id,
+                    treasuryId: defaultTreasuryId
+                }
+            });
+
+            // Decrement treasury balance
+            await tx.treasury.update({
+                where: { id: defaultTreasuryId },
+                data: { balance: { decrement: refundAmount } }
+            });
+        } else if (method === 'ACCOUNT' && ticket.customerId) {
+            // Customer credit balance
+            await tx.customer.update({
+                where: { id: ticket.customerId },
+                data: { balance: { decrement: refundAmount } }
+            });
+
+            await tx.customerTransaction.create({
+                data: {
+                    customerId: ticket.customerId,
+                    type: 'CREDIT',
+                    amount: refundAmount,
+                    description: `إيداع متبقي تذكرة #${ticket.barcode} في الحساب`,
+                    reference: ticket.id,
+                    createdBy: currentUser.id,
+                    branchId: currentUser.branchId || undefined
+                }
+            });
+        }
+
+        // 4. Double-Entry Journal Entry: Debit GL 2150 (Customer Liability) / Credit GL 1000 (Cash Drawer)
+        const je = await AccountingEngine.recordTransaction({
+            description: `رد متبقي عربون تذكرة #${ticket.barcode}`,
+            reference: ticket.id,
+            ticketId: ticket.id,
+            branchId: currentUser.branchId ?? undefined,
+            idempotencyKey: resolvedIdempotencyKey,
+            lines: [
+                {
+                    accountCode: GL.LIABILITIES.CUSTOMER_DEPOSITS,
+                    debit: refundAmount,
+                    credit: new Decimal(0),
+                    description: `إخلاء ذمة عربون العميل تذكرة #${ticket.barcode}`
+                },
+                {
+                    accountCode: method === 'ACCOUNT' ? GL.ASSETS.RECEIVABLES : GL.ASSETS.CASH,
+                    debit: new Decimal(0),
+                    credit: refundAmount,
+                    description: method === 'ACCOUNT' ? 'تخفيض حساب العميل' : 'صرف نقدي من الدرج'
+                }
+            ]
+        }, tx);
+
+        if (je) {
+            await tx.repairPayment.update({
+                where: { id: paymentRecord.id },
+                data: { journalEntryId: je.id }
+            });
+        }
+
+        return updatedTicket;
+    });
+
+    await updateShiftHeartbeat(currentShift.id).catch(console.error);
+
+    revalidatePath(`/maintenance/tickets/${ticket.id}`);
+    revalidatePath('/tickets');
+    revalidateTag('dashboard');
+
+    return {
+        success: true,
+        ticket: transactionResult,
+        message: `تم صرف مبلغ ${refundAmount} ج.م للعميل بنجاح`
+    };
+}, { permission: PERMISSIONS.TICKET_PAY });
+
+/**
+ * Reopen an accidentally delivered ticket back to in-progress repair state,
+ * completely reversing all side effects (GL distributions, commissions, warranty timers).
+ */
+export const reopenAccidentallyDeliveredTicket = secureAction(async (data: {
+    ticketId: string;
+    targetStatus?: string;
+    reason?: string;
+    csrfToken?: string;
+}) => {
+    const { ticketId, targetStatus = 'IN_PROGRESS', reason } = data;
+    const currentUser = await getCurrentUser();
+    if (!currentUser) throw new Error("Authentication required");
+
+    const ticket = await prisma.ticket.findFirst({
+        where: { OR: [{ id: ticketId }, { barcode: ticketId }] }
+    });
+    if (!ticket) throw new Error("التذكرة غير موجودة.");
+
+    if (ticket.status !== 'PAID_DELIVERED' && ticket.status !== 'DELIVERED') {
+        throw new Error("هذه التذكرة ليست في حالة تسليم لإعادة فتحها.");
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+        // 1. Revert ticket status and clear delivery timestamps & profit snapshots
+        const t = await tx.ticket.update({
+            where: { id: ticket.id },
+            data: {
+                status: targetStatus,
+                deliveredAt: null,
+                warrantyExpiryDate: null,
+                // Reset profit distribution snapshots to 0.00
+                finalCustomerPrice: new Decimal(0),
+                techBillingPrice: new Decimal(0),
+                partCostPrice: new Decimal(0),
+                laborPoolAmount: new Decimal(0),
+                techCommissionAmount: new Decimal(0),
+                centerLaborProfit: new Decimal(0),
+                centerPartProfit: new Decimal(0),
+                commissionAmount: new Decimal(0),
+                netProfit: new Decimal(0)
+            }
+        });
+
+        // 2. Reverse GL distribution journal entry if it was created
+        const distJournalKey = `TICKET_DIST_${ticket.id}`;
+        const existingJournal = await tx.journalEntry.findUnique({
+            where: { idempotencyKey: distJournalKey },
+            include: { lines: true }
+        });
+
+        if (existingJournal) {
+            const reversalKey = `TICKET_DIST_REVERSAL_${ticket.id}_${Date.now()}`;
+            await AccountingEngine.reverseJournalEntry(existingJournal.id, reversalKey, tx);
+        }
+
+        // 3. Compensate / Reverse technician commission in EmployeeTransaction
+        const commTransactions = await tx.employeeTransaction.findMany({
+            where: {
+                referenceId: ticket.id,
+                type: 'MAINTENANCE_COMMISSION'
+            }
+        });
+
+        for (const comm of commTransactions) {
+            await tx.employeeTransaction.create({
+                data: {
+                    userId: comm.userId,
+                    type: 'COMMISSION_REVERSAL',
+                    amount: new Decimal(comm.amount?.toString() || '0').negated(),
+                    description: `عكس عمولة تذكرة #${ticket.barcode} (إلغاء التسليم المبكر)`,
+                    referenceId: ticket.id,
+                    referenceType: 'TICKET',
+                    branchId: comm.branchId ?? undefined
+                }
+            });
+        }
+
+        // 4. Log Action
+        await tx.actionLog.create({
+            data: {
+                action: 'REOPEN_DELIVERED_TICKET',
+                details: `إعادة فتح تذكرة #${ticket.barcode} من حالة ${ticket.status} إلى ${targetStatus}. السبب: ${reason || 'إلغاء تسليم مبكر'}`,
+                userId: currentUser.id,
+                branchId: currentUser.branchId ?? undefined
+            }
+        }).catch(err => console.warn('[ActionLog] Non-critical fail:', err));
+
+        return t;
+    });
+
+    revalidatePath(`/maintenance/tickets/${ticket.id}`);
+    revalidatePath('/tickets');
+    revalidateTag('dashboard');
+
+    return {
+        success: true,
+        ticket: updated,
+        message: "تم إلغاء التسليم المبكر وإعادة فتح مسار الصيانة وعكس القيود والعمولات بنجاح."
+    };
+}, { permission: PERMISSIONS.TICKET_EDIT });
 
 /**
  * Get or create customer for ticket payment

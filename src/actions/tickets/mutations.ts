@@ -82,12 +82,28 @@ export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSc
                 else if (phoneCheck.usedBy === 'SUPPLIER') clientSupplierId = phoneCheck.entityId;
                 else if (phoneCheck.usedBy === 'CUSTOMER') customerId = phoneCheck.entityId;
             } else if (!customerId) {
-                const customer = await tx.customer.upsert({
-                    where: { phone: normalizedPhone },
-                    update: { name: data.customerName },
-                    create: { name: data.customerName, phone: normalizedPhone, balance: 0 }
+                const existingCustomer = await tx.customer.findFirst({
+                    where: { phone: normalizedPhone }
                 });
-                customerId = customer.id;
+
+                if (existingCustomer) {
+                    if (data.customerName && existingCustomer.name !== data.customerName) {
+                        await tx.customer.update({
+                            where: { id: existingCustomer.id },
+                            data: { name: data.customerName }
+                        });
+                    }
+                    customerId = existingCustomer.id;
+                } else {
+                    const newCustomer = await tx.customer.create({
+                        data: {
+                            name: data.customerName,
+                            phone: normalizedPhone,
+                            balance: 0
+                        }
+                    });
+                    customerId = newCustomer.id;
+                }
             }
         }
 

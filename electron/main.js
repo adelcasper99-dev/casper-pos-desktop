@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const net = require('net');
+const http = require('http');
 const { execSync, spawn } = require('child_process');
 const { autoUpdater } = require('electron-updater');
 
@@ -399,7 +400,42 @@ const startServer = () => {
             }, 500);
 
         } else {
-            resolve();
+            log('Development Mode: Polling Next.js dev server on http://127.0.0.1:3001...');
+            let attempt = 0;
+            const MAX_ATTEMPTS = 60;
+            const devPoll = setInterval(() => {
+                attempt++;
+                if (splashWindow && !splashWindow.isDestroyed()) {
+                    splashWindow.webContents.send('boot-status', `جاري تجهيز خادم Next.js المحلي (${attempt}/${MAX_ATTEMPTS})...`);
+                }
+
+                const req = http.get('http://127.0.0.1:3001', (res) => {
+                    const statusCode = res.statusCode || 0;
+                    if (statusCode >= 200 && statusCode < 400) {
+                        log(`Dev Server ready! Status code: ${statusCode} (Attempt ${attempt})`);
+                        clearInterval(devPoll);
+                        resolve();
+                    } else {
+                        log(`Dev Server returned status ${statusCode}, waiting... (Attempt ${attempt})`);
+                        if (attempt >= MAX_ATTEMPTS) {
+                            clearInterval(devPoll);
+                            reject(new Error(`خادم Next.js أعاد رمز حالة غير صالح: ${statusCode}`));
+                        }
+                    }
+                });
+
+                req.on('error', (err) => {
+                    log(`Dev Server poll error: ${err.message} (Attempt ${attempt})`);
+                    if (attempt >= MAX_ATTEMPTS) {
+                        clearInterval(devPoll);
+                        reject(new Error('تعذر الاتصال بخادم Next.js على المنفذ 3001 بعد 60 ثانية. يُرجى التحقق من أخطاء Terminal.'));
+                    }
+                });
+
+                req.setTimeout(1500, () => {
+                    req.destroy();
+                });
+            }, 1000);
         }
     });
 };

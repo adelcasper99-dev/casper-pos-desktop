@@ -119,19 +119,19 @@ export default function WhatsAppQuickButton({
   };
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-1 w-full">
       <motion.button
-        whileHover={{ scale: 1.02, translateY: -2 }}
-        whileTap={{ scale: 0.98 }}
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.99 }}
         onClick={handleSendMessage}
         disabled={isOpening}
         title="إرسال رسالة واتساب للعميل"
         className={cn(
-          "group relative flex items-center gap-3 px-6 h-11 rounded-xl font-bold transition-all overflow-hidden",
+          "group relative flex items-center justify-center gap-2 px-3 h-8.5 rounded-lg font-bold transition-all overflow-hidden flex-1",
           status === 'REJECTED' 
-            ? "bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-lg shadow-orange-500/20"
-            : "bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-lg shadow-emerald-500/20",
-          "hover:shadow-lg disabled:opacity-70 disabled:cursor-not-allowed",
+            ? "bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-md shadow-orange-500/20"
+            : "bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-md shadow-emerald-500/20",
+          "hover:shadow-md disabled:opacity-70 disabled:cursor-not-allowed",
           className
         )}
       >
@@ -139,28 +139,28 @@ export default function WhatsAppQuickButton({
         
         <div className="relative">
           {isOpening ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
+            <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
-            <MessageCircle className="w-5 h-5 fill-white/20" />
+            <MessageCircle className="w-4 h-4 fill-white/20" />
           )}
         </div>
 
-        <span className="relative z-10 whitespace-nowrap text-sm">
+        <span className="relative z-10 whitespace-nowrap text-xs font-black">
           {isOpening ? 'جاري الاتصال...' : status === 'REJECTED' ? 'إبلاغ بالرفض' : 'إبلاغ بالجاهزية'}
         </span>
 
-        <ExternalLink className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 transition-opacity" />
-        <div className="absolute inset-0 rounded-xl border border-white/20 group-hover:border-white/40 transition-colors" />
+        <ExternalLink className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity" />
+        <div className="absolute inset-0 rounded-lg border border-white/20 group-hover:border-white/40 transition-colors" />
       </motion.button>
 
       <motion.button
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
         onClick={handleCopyLink}
-        className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+        className="h-8.5 w-8.5 flex items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors shrink-0"
         title="نسخ رابط المحادثة"
       >
-        {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+        {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
       </motion.button>
     </div>
   );

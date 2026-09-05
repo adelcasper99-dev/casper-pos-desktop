@@ -95,7 +95,7 @@ export function SearchableSelect({
     }
 
     return (
-        <div className={cn("relative w-full", className)} ref={containerRef}>
+        <div className={cn("relative w-full", isOpen ? "z-50" : "z-auto", className)} ref={containerRef}>
             <div className="relative">
                 <input
                     ref={inputRef}
@@ -147,7 +147,7 @@ export function SearchableSelect({
             </div>
 
             {isOpen && !disabled && (
-                <div className="absolute z-50 w-full top-full mt-2 bg-white dark:bg-zinc-900 border-2 border-slate-300 dark:border-white/20 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 max-h-60 overflow-y-auto">
+                <div className="absolute z-[100] w-full top-full mt-1.5 bg-white dark:bg-zinc-900 border-2 border-slate-300 dark:border-white/20 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 max-h-60 overflow-y-auto">
                     {filteredOptions.length === 0 && !onAdd && (
                         <div className="p-3 text-sm text-zinc-500 text-center">{t('noOptions')}</div>
                     )}

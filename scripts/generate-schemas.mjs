@@ -1,15 +1,18 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const rootDir = path.resolve(__dirname, '..');
 const BASE_SCHEMA = path.resolve(__dirname, '../prisma/schema.base.prisma');
 const CLOUD_SCHEMA = path.resolve(__dirname, '../prisma/schema.cloud.prisma');
 const LOCAL_SCHEMA = path.resolve(__dirname, '../prisma/schema.local.prisma');
 const EXTENSION_PATH = path.resolve(__dirname, '../src/lib/prisma-tenant-extension.ts');
+const CACHE_FILE = path.resolve(__dirname, '../node_modules/.prisma-generate-cache.json');
 
 if (!fs.existsSync(BASE_SCHEMA)) {
     console.error('ERROR: schema.base.prisma not found.');
@@ -18,33 +21,38 @@ if (!fs.existsSync(BASE_SCHEMA)) {
 
 const baseContent = fs.readFileSync(BASE_SCHEMA, 'utf8');
 
+function safeWriteFileSync(filePath, fileContent, retries = 5, delayMs = 150) {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            fs.writeFileSync(filePath, fileContent, 'utf8');
+            return;
+        } catch (err) {
+            if (attempt === retries) throw err;
+            const sleepBuffer = new Int32Array(new SharedArrayBuffer(4));
+            Atomics.wait(sleepBuffer, 0, 0, delayMs);
+        }
+    }
+}
+
 // 1. Generate Cloud Schema (PostgreSQL, Multi-Tenant)
 let cloudContent = baseContent.replace(/provider\s*=\s*"base"/, 'provider = "postgresql"');
-fs.writeFileSync(CLOUD_SCHEMA, cloudContent);
+safeWriteFileSync(CLOUD_SCHEMA, cloudContent);
 console.log('[generate-schemas] Generated schema.cloud.prisma');
 
 // 2. Generate Local Schema (SQLite, Single-Tenant)
 let localContent = baseContent.replace(/provider\s*=\s*"base"/, 'provider = "sqlite"');
-// Strip all lines containing `// MULTITENANT_FIELD`
 localContent = localContent.split('\n').filter(line => !line.includes('// MULTITENANT_FIELD')).join('\n');
-// Strip all @@index([tenantId]) exactly
 localContent = localContent.replace(/@@index\(\[tenantId\]\)\s*\n/g, '');
-// Strip tenantId from compound unique/index constraints
 localContent = localContent.replace(/tenantId,\s*/g, '');
 localContent = localContent.replace(/,\s*tenantId/g, '');
-// Remove if it becomes empty like @@unique([])
 localContent = localContent.replace(/@@unique\(\[\]\)\s*\n/g, '');
 localContent = localContent.replace(/@@index\(\[\]\)\s*\n/g, '');
 
-// Strip models
-localContent = localContent.replace(/\/\/\s*──\s*Tenant Model\s*──[\s\S]*?model Tenant \{[\s\S]*?\n\}/g, '');
-localContent = localContent.replace(/\/\/\s*──\s*License Model\s*──[\s\S]*?model License \{[\s\S]*?\n\}/g, '');
-localContent = localContent.replace(/\/\/\s*──\s*Per-Tenant Sequential Numbering\s*──[\s\S]*?model TenantSequence \{[\s\S]*?\n\}/g, '');
 localContent = localContent.replace(/model Tenant \{[\s\S]*?\n\}/g, '');
 localContent = localContent.replace(/model License \{[\s\S]*?\n\}/g, '');
 localContent = localContent.replace(/model TenantSequence \{[\s\S]*?\n\}/g, '');
 
-fs.writeFileSync(LOCAL_SCHEMA, localContent);
+safeWriteFileSync(LOCAL_SCHEMA, localContent);
 console.log('[generate-schemas] Generated schema.local.prisma');
 
 // 3. Sync TENANT_AWARE_MODELS array
@@ -71,7 +79,7 @@ if (fs.existsSync(EXTENSION_PATH)) {
         const formattedList = tenantAwareModels.map(m => `    '${m}'`).join(',\n');
         const newBlock = `${startMarker}\n${formattedList}\n`;
         const newExtContent = extContent.substring(0, startIndex) + newBlock + extContent.substring(endIndex);
-        fs.writeFileSync(EXTENSION_PATH, newExtContent);
+        safeWriteFileSync(EXTENSION_PATH, newExtContent);
         console.log(`[generate-schemas] Synced ${tenantAwareModels.length} models to prisma-tenant-extension.ts`);
     }
 }
@@ -92,7 +100,34 @@ function getDatabaseUrl() {
     return null;
 }
 
+function getPrismaClientVersion() {
+    try {
+        const clientPkgPath = path.resolve(__dirname, '../node_modules/@prisma/client/package.json');
+        if (fs.existsSync(clientPkgPath)) {
+            const pkg = JSON.parse(fs.readFileSync(clientPkgPath, 'utf8'));
+            return pkg.version || 'unknown';
+        }
+    } catch (_) {}
+    return 'unknown';
+}
+
+function readCache() {
+    try {
+        if (fs.existsSync(CACHE_FILE)) {
+            return JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+        }
+    } catch (_) {}
+    return null;
+}
+
+function saveCache(cacheData) {
+    try {
+        safeWriteFileSync(CACHE_FILE, JSON.stringify(cacheData, null, 2));
+    } catch (_) {}
+}
+
 if (process.argv.includes('--generate')) {
+    const isForce = process.argv.includes('--force');
     let rawDbUrl = getDatabaseUrl();
     if (!rawDbUrl) {
         console.warn('⚠️ [generate-schemas] WARNING: DATABASE_URL not found in environment or .env file. Defaulting to "file:./local.db".');
@@ -104,18 +139,56 @@ if (process.argv.includes('--generate')) {
     const targetSchemaPath = isPostgres ? CLOUD_SCHEMA : LOCAL_SCHEMA;
     const targetSchemaName = isPostgres ? 'prisma/schema.cloud.prisma' : 'prisma/schema.local.prisma';
 
+    const targetSchemaContent = fs.readFileSync(targetSchemaPath, 'utf8');
+    const targetSchemaHash = crypto.createHash('sha256').update(targetSchemaContent).digest('hex');
+    const clientVersion = getPrismaClientVersion();
+    const indexJsExists = fs.existsSync(path.resolve(__dirname, '../node_modules/.prisma/client/index.js'));
+
+    const cache = readCache();
+    const isCacheValid = !isForce &&
+        cache &&
+        cache.targetSchemaHash === targetSchemaHash &&
+        cache.provider === detectedProvider &&
+        cache.clientVersion === clientVersion &&
+        indexJsExists;
+
+    if (isCacheValid) {
+        console.log(`⚡ [generate-schemas] Prisma client up-to-date (cached for ${detectedProvider} provider).`);
+        process.exit(0);
+    }
+
     const safeUrl = rawDbUrl.replace(/:\/\/[^@]+@/, '://***:***@');
-    console.log(`[generate-schemas] 🟢 Auto-detected DB protocol provider: "${detectedProvider}" (URL: ${safeUrl})`);
+    console.log(`[generate-schemas] 🔍 Auto-detected DB protocol provider: "${detectedProvider}" (URL: ${safeUrl})`);
     console.log(`[generate-schemas] Running "npx prisma generate --schema ${targetSchemaName}"...`);
 
     try {
         execSync(`npx prisma generate --schema "${targetSchemaPath}"`, {
             stdio: 'inherit',
-            cwd: path.resolve(__dirname, '..')
+            cwd: rootDir
+        });
+        saveCache({
+            targetSchemaHash,
+            provider: detectedProvider,
+            clientVersion,
+            generatedAt: new Date().toISOString()
         });
         console.log(`[generate-schemas] ✅ Prisma client generated successfully using ${targetSchemaName}`);
     } catch (error) {
-        console.error(`❌ [generate-schemas] ERROR: Failed to generate Prisma client with ${targetSchemaName}:`, error.message);
+        const errMsg = error.message || '';
+        if (errMsg.includes('EPERM') || errMsg.includes('query_engine') || errMsg.includes('unlink')) {
+            console.error('\n⚠️ =======================================================================');
+            console.error('⚠️ [generate-schemas] WINDOWS DLL LOCK DETECTED (EPERM)');
+            console.error('⚠️ =======================================================================');
+            console.error('⚠️ A running Node.js/Electron dev process is locking the Prisma native engine:');
+            console.error('⚠️   node_modules/.prisma/client/query_engine-windows.dll.node');
+            console.error('⚠️');
+            console.error('⚠️ To apply the updated schema:');
+            console.error('⚠️   1. Stop the running dev process (Ctrl+C in the running terminal).');
+            console.error('⚠️   2. Re-run: npm run dev');
+            console.error('⚠️ =======================================================================\n');
+            process.exit(1);
+        }
+        console.error(`❌ [generate-schemas] ERROR: Failed to generate Prisma client with ${targetSchemaName}:`, errMsg);
         process.exit(1);
     }
 }

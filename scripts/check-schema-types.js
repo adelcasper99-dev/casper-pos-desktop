@@ -1,7 +1,13 @@
 const fs = require('fs');
 const path = require('path');
 
-const SCHEMA_PATH = path.join(__dirname, '../prisma/schema.prisma');
+let SCHEMA_PATH = path.join(__dirname, '../prisma/schema.prisma');
+if (!fs.existsSync(SCHEMA_PATH)) {
+    const baseSchema = path.join(__dirname, '../prisma/schema.base.prisma');
+    if (fs.existsSync(baseSchema)) {
+        SCHEMA_PATH = baseSchema;
+    }
+}
 
 // Model-qualified whitelist: "<ModelName>.<fieldName>"
 // These are non-financial Float fields (metrics, coordinates, file sizes).
@@ -15,10 +21,10 @@ const WHITELIST = new Set([
 ]);
 
 function checkSchema() {
-    console.log('🔍 Checking prisma/schema.prisma for unauthorized Float types...');
+    console.log(`🔍 Checking ${path.basename(SCHEMA_PATH)} for unauthorized Float types...`);
     
     if (!fs.existsSync(SCHEMA_PATH)) {
-        console.error('❌ schema.prisma not found at:', SCHEMA_PATH);
+        console.error('❌ Schema not found at:', SCHEMA_PATH);
         process.exit(1);
     }
 

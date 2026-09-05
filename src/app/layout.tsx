@@ -107,24 +107,22 @@ export default async function RootLayout({
         }
     }
 
-    const user = await getCurrentUser();
-    const cookieStore = await cookies();
+    const [user, cookieStore, settingsRes, licenseStatus] = await Promise.all([
+        getCurrentUser(),
+        cookies(),
+        getStoreSettings(),
+        LicenseVerifier.verify().catch((error): LicenseCheckResult => {
+            console.error("License verification error in layout:", error);
+            return { status: 'ERROR', message: 'Failed to verify license' };
+        })
+    ]);
+
     const csrfToken = cookieStore.get('csrf-token')?.value || null;
-
-    const settingsRes = await getStoreSettings();
     const settings = settingsRes?.data || {};
-
-    let licenseStatus: LicenseCheckResult | null = null;
-    try {
-        licenseStatus = await LicenseVerifier.verify();
-    } catch (error) {
-        console.error("License verification error in layout:", error);
-        licenseStatus = { status: 'ERROR', message: 'Failed to verify license' };
-    }
 
     return (
         <html lang="ar" dir="rtl" suppressHydrationWarning>
-            <body className="antialiased">
+            <body className="antialiased" suppressHydrationWarning>
                 <Providers initialToken={csrfToken} initialSettings={settings}>
                     <TimeSyncWarning />
                     <NavigationHotkeys />

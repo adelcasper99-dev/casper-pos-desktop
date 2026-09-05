@@ -268,15 +268,19 @@ export const closeShift = secureAction(async (data: {
         toDecimal(0)
     );
 
-    // ✅ FIX: Subtract CASH refunds issued during this shift from expectedCash
+    // ✅ FIX: Subtract CASH refunds and cross-shift refunds issued during this shift from expectedCash
     // Use the accumulated value from real-time tracking
     const totalCashRefundsToUse = totalCashRefundsAccumulated;
+    const totalCrossShiftRefundsIssued = toDecimal((shift as any).crossShiftRefundsIssued ?? 0);
+    const totalCrossShiftRefundsReceived = toDecimal((shift as any).crossShiftRefundsReceived ?? 0);
 
-    // Calculate expected cash: Start + Cash Sales - Cash Expenses - Cash Refunds
+    // Calculate expected cash: Start + Cash Sales - Cash Expenses - Cash Refunds + CrossShift Received - CrossShift Issued
     const expectedCash = toDecimal(shift.startCash)
         .add(totalCashSales)
         .minus(totalCashExpenses)
-        .minus(totalCashRefundsToUse);
+        .minus(totalCashRefundsToUse)
+        .add(totalCrossShiftRefundsReceived)
+        .minus(totalCrossShiftRefundsIssued);
 
     const actualCashDecimal = toDecimal(data.actualCash);
     const cashVariance = actualCashDecimal.minus(expectedCash);
@@ -590,11 +594,16 @@ export const getShiftStatusPreview = secureAction(async (data: { shiftId: string
         .filter((exp: any) => (exp.paymentMethod || 'CASH').toUpperCase() === 'CASH')
         .reduce((sum: Decimal, exp: any) => sum.add(toDecimal(exp.amount)), toDecimal(0));
 
-    // Expected Cash = Start + Cash Revenue - Cash Expenses - Cash Refunds
+    const totalCrossShiftRefundsIssued = toDecimal(shiftData.crossShiftRefundsIssued ?? 0);
+    const totalCrossShiftRefundsReceived = toDecimal(shiftData.crossShiftRefundsReceived ?? 0);
+
+    // Expected Cash = Start + Cash Revenue - Cash Expenses - Cash Refunds + CrossShift Received - CrossShift Issued
     const expectedCash = toDecimal(shift.startCash)
         .add(toDecimal(shift.totalCashSales))
         .minus(totalCashExpenses)
-        .minus(toDecimal(shift.totalCashRefunds || 0));
+        .minus(toDecimal(shift.totalCashRefunds || 0))
+        .add(totalCrossShiftRefundsReceived)
+        .minus(totalCrossShiftRefundsIssued);
 
     return serialize({
         success: true,
@@ -611,7 +620,9 @@ export const getShiftStatusPreview = secureAction(async (data: { shiftId: string
                 expected: expectedCash.toNumber(),
                 recordedSales: shift.totalCashSales.toNumber(),
                 expenses: totalCashExpenses.toNumber(),
-                refunds: (shift.totalCashRefunds || new Decimal(0)).toNumber()
+                refunds: (shift.totalCashRefunds || new Decimal(0)).toNumber(),
+                crossShiftRefundsIssued: totalCrossShiftRefundsIssued.toNumber(),
+                crossShiftRefundsReceived: totalCrossShiftRefundsReceived.toNumber()
             }
         }
     });

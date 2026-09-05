@@ -46,29 +46,29 @@ export const TICKET_TRANSITIONS: TransitionRule[] = [
         description: "Waiting for approval or parts",
         actionLabel: "فى انتظار"
     },
-    // 4. فى انتظار / تعيين مهندس -> إرسال للجودة (Send to QC)
+    // 4. فى انتظار / تعيين مهندس / بدء الإصلاح -> إضافة قطعة غيار
     {
-        from: [TicketStatus.PENDING_APPROVAL, TicketStatus.AT_CENTER, TicketStatus.DIAGNOSING, TicketStatus.IN_PROGRESS],
-        to: TicketStatus.QC_PENDING,
+        from: [TicketStatus.IN_PROGRESS, TicketStatus.AT_CENTER, TicketStatus.PENDING_APPROVAL, TicketStatus.DIAGNOSING],
+        to: TicketStatus.IN_PROGRESS,
         requiredPermission: PERMISSIONS.TICKET_EDIT,
-        description: "Send to Quality Control",
-        actionLabel: "إرسال للجودة"
+        description: "Add Spare Parts & Services",
+        actionLabel: "إضافة قطعة غيار"
     },
-    // 4.1 إرسال للجودة -> تم الاصلاح (Fixed)
+    // 4.1 قيد الإصلاح / انتظار -> تم الاصلاح (Fixed)
     {
-        from: [TicketStatus.QC_PENDING],
+        from: [TicketStatus.IN_PROGRESS, TicketStatus.PENDING_APPROVAL, TicketStatus.QC_PENDING],
         to: TicketStatus.COMPLETED,
         requiredPermission: PERMISSIONS.TICKET_COMPLETE,
-        description: "Repair finished and QC passed",
-        actionLabel: "تم الاصلاح (اجتاز الفحص)"
+        description: "Repair finished and completed",
+        actionLabel: "تم الاصلاح"
     },
-    // 4.2 إرسال للجودة -> إعادة للمهندس (Return to Tech)
+    // 4.2 مرتجع لإعادة الإصلاح (Return to Tech)
     {
-        from: [TicketStatus.QC_PENDING],
+        from: [TicketStatus.QC_PENDING, TicketStatus.COMPLETED],
         to: TicketStatus.RETURNED_FOR_REFIX,
         requiredPermission: PERMISSIONS.TICKET_EDIT,
-        description: "QC Failed - Return to technician",
-        actionLabel: "فشل الفحص - إعادة للمهندس"
+        description: "Return to technician for refix",
+        actionLabel: "إعادة للمهندس للإصلاح"
     },
     // 5. تم الاصلاح -> الدفع (Payment)
     {
@@ -100,7 +100,7 @@ export const TICKET_TRANSITIONS: TransitionRule[] = [
 export function canTransition(
     currentStatus: string,
     userPermissions: string[],
-    ticketDetails?: any, // For logic guards (parts count etc)
+    ticketDetails?: { technicianId?: string | null; parts?: unknown[] } | null,
     currentBranchType: string = "CENTER", // Single-branch mode: always CENTER
     userRole?: string
 ): { allowed: boolean; reason?: string; actionLabel?: string; target: string }[] {

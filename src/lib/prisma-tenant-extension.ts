@@ -5,9 +5,13 @@ export type TenantContext = {
     tenantId: string;
 };
 
+interface AsyncHooksModule {
+    AsyncLocalStorage?: typeof AsyncLocalStorage;
+}
+
 // AsyncLocalStorage to maintain the current tenant context during request lifecycle
 // Safe instantiation for environments where async_hooks is mocked/unavailable (e.g. Next.js Client Components)
-let asyncHooks: any = {};
+let asyncHooks: AsyncHooksModule = {};
 try {
     asyncHooks = require('async_hooks');
 } catch (e) {}
@@ -107,12 +111,23 @@ const TENANT_AWARE_MODELS = [
     'Warehouse'
 ];
 
+interface PrismaOperationArgs {
+    where?: Record<string, unknown>;
+    data?: Record<string, unknown> | Array<Record<string, unknown>>;
+    create?: Record<string, unknown>;
+    update?: Record<string, unknown>;
+    [key: string]: unknown;
+}
+
+type DynamicPrismaClient = Record<string, Record<string, (args: unknown) => Promise<unknown>>>;
+
 export const prismaTenantExtension =
     typeof window === 'undefined'
         ? Prisma.defineExtension((client) => {
-              const isPostgres =
+              const isPostgresOrTest =
                   process.env.DATABASE_URL?.startsWith('postgres') ||
-                  process.env.DATABASE_URL?.startsWith('postgresql');
+                  process.env.DATABASE_URL?.startsWith('postgresql') ||
+                  process.env.NODE_ENV === 'test';
 
               return client.$extends({
                   query: {
@@ -120,13 +135,15 @@ export const prismaTenantExtension =
                           async $allOperations({ model, operation, args, query }) {
                               const tenantId = getTenantId();
 
-                              // If tenant context is missing, or is explicitly set to 'SYSTEM' (Super Admin), bypass RLS-like filters
-                              // Also bypass if running locally (SQLite/not Postgres) because local schema has no tenantId fields
-                              if (!tenantId || tenantId === 'SYSTEM' || !isPostgres) {
+                              // If tenant context is missing, or is explicitly set to 'SYSTEM' or 'casper-hq' (Super Admin Control Plane), bypass RLS-like filters
+                              // Also bypass if running locally (SQLite/not Postgres in production desktop) because local schema has no tenantId fields
+                              if (!tenantId || tenantId === 'SYSTEM' || tenantId === 'casper-hq' || !isPostgresOrTest) {
                                   return query(args);
                               }
 
                               if (TENANT_AWARE_MODELS.includes(model)) {
+                                  const opArgs = (args || {}) as PrismaOperationArgs;
+
                                   // 1. Inject tenantId filter for query/update/delete operations that have a 'where' clause
                                   if ([
                                       'findFirst',
@@ -142,23 +159,24 @@ export const prismaTenantExtension =
                                       'findUnique',
                                       'findUniqueOrThrow'
                                   ].includes(operation)) {
-                                      (args as any).where = (args as any).where || {};
+                                      opArgs.where = opArgs.where || {};
 
                                       // Special handling: Prisma findUnique only accepts unique fields.
                                       // Convert it to findFirst to allow injecting custom non-unique filters (tenantId).
                                       if (operation === 'findUnique' || operation === 'findUniqueOrThrow') {
                                           const newOperation = operation === 'findUnique' ? 'findFirst' : 'findFirstOrThrow';
                                           
-                                          let finalWhere = { ...(args as any).where };
+                                          const finalWhere: Record<string, unknown> = { ...opArgs.where };
                                           // Flatten composite keys because findFirst does not accept them
                                           for (const key of Object.keys(finalWhere)) {
-                                              if (typeof finalWhere[key] === 'object' && finalWhere[key] !== null && key.includes('_')) {
-                                                  const nestedObj = finalWhere[key];
+                                              const nestedObj = finalWhere[key];
+                                              if (typeof nestedObj === 'object' && nestedObj !== null && key.includes('_')) {
+                                                  const recordObj = nestedObj as Record<string, unknown>;
                                                   const parts = key.split('_');
-                                                  const isComposite = parts.every(part => part in nestedObj);
+                                                  const isComposite = parts.every(part => part in recordObj);
                                                   if (isComposite) {
                                                       for (const part of parts) {
-                                                          finalWhere[part] = nestedObj[part];
+                                                          finalWhere[part] = recordObj[part];
                                                       }
                                                       delete finalWhere[key];
                                                   }
@@ -166,9 +184,9 @@ export const prismaTenantExtension =
                                           }
 
                                           const camelModel = model.charAt(0).toLowerCase() + model.slice(1);
-                                          // @ts-ignore
-                                          return (client as any)[camelModel][newOperation]({
-                                              ...args,
+                                          const dynamicClient = client as unknown as DynamicPrismaClient;
+                                          return dynamicClient[camelModel][newOperation]({
+                                              ...opArgs,
                                               where: {
                                                   ...finalWhere,
                                                   tenantId: tenantId
@@ -176,24 +194,24 @@ export const prismaTenantExtension =
                                           });
                                       }
 
-                                      (args as any).where.tenantId = tenantId;
+                                      opArgs.where.tenantId = tenantId;
                                   }
 
                                   // 2. Inject tenantId for write/create operations
                                   if (operation === 'create') {
-                                      (args as any).data = (args as any).data || {};
-                                      (args as any).data.tenantId = tenantId;
+                                      opArgs.data = (opArgs.data || {}) as Record<string, unknown>;
+                                      opArgs.data.tenantId = tenantId;
                                   }
 
                                   if (operation === 'createMany') {
-                                      if (Array.isArray((args as any).data)) {
-                                          (args as any).data = (args as any).data.map((item: any) => ({
+                                      if (Array.isArray(opArgs.data)) {
+                                          opArgs.data = opArgs.data.map((item) => ({
                                               ...item,
                                               tenantId: tenantId
                                           }));
                                       } else {
-                                          (args as any).data = (args as any).data || {};
-                                          (args as any).data.tenantId = tenantId;
+                                          opArgs.data = (opArgs.data || {}) as Record<string, unknown>;
+                                          opArgs.data.tenantId = tenantId;
                                       }
                                   }
 
@@ -201,10 +219,10 @@ export const prismaTenantExtension =
                                       // Note: Do NOT inject tenantId into args.where for upsert, because Prisma translates
                                       // args.where fields directly into PostgreSQL ON CONFLICT target columns, which causes 42P10
                                       // if no compound unique constraint exists on (unique_field, tenantId).
-                                      (args as any).create = (args as any).create || {};
-                                      (args as any).create.tenantId = tenantId;
-                                      (args as any).update = (args as any).update || {};
-                                      (args as any).update.tenantId = tenantId;
+                                      opArgs.create = opArgs.create || {};
+                                      opArgs.create.tenantId = tenantId;
+                                      opArgs.update = opArgs.update || {};
+                                      opArgs.update.tenantId = tenantId;
                                   }
                               }
 
@@ -217,5 +235,5 @@ export const prismaTenantExtension =
         // Browser: webpack alias in next.config.js redirects @/lib/prisma to a stub,
         // so this branch is unreachable in practice. null satisfies the type without
         // crashing at module evaluation time if the alias ever misses.
-        : null as any;
+        : (null as unknown as ReturnType<typeof Prisma.defineExtension>);
 

@@ -17,7 +17,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select"
 import { cn, safeRandomUUID } from "@/lib/utils"
 import PatternLockCanvas from "@/components/tickets/PatternLockCanvas"
 import { generateIdempotencyKey } from '@/lib/offline-transaction-helper';
-import { offlineDB } from "@/lib/offline-db";
+import { offlineDB, type OfflineTicket } from "@/lib/offline-db";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useWhatsAppAutoNotify } from "@/hooks/useWhatsAppAutoNotify";
 import { getEffectiveStoreSettings } from "@/actions/settings";
@@ -28,6 +28,14 @@ import { Edit, Trash2, PlusCircle, Sparkles, Zap } from "lucide-react";
 import { searchCustomers } from "@/actions/customer-actions";
 import GlassModal from "@/components/ui/GlassModal";
 import { shouldAutoPrint } from "@/lib/print-guard";
+
+type TicketPageSettings = {
+    name?: string | null;
+    whatsappEnabled?: boolean;
+    whatsappTemplates?: string | null;
+    autoPrintTicket?: boolean;
+    [key: string]: unknown;
+};
 
 const POPULAR_BRANDS = ['Apple', 'Samsung', 'Xiaomi', 'Oppo', 'Realme', 'Huawei', 'Infinix', 'Vivo'];
 const POPULAR_ISSUES = [
@@ -56,7 +64,7 @@ export default function NewTicketPage() {
     const autoNotify = useWhatsAppAutoNotify();
     const [submitting, setSubmitting] = useState(false)
     const [isEditingPresets, setIsEditingPresets] = useState<"ISSUE" | "CONDITION" | null>(null)
-    const [settings, setSettings] = useState<any>(null);
+    const [settings, setSettings] = useState<TicketPageSettings | null>(null);
 
     // Reset Modal State
     const [showResetModal, setShowResetModal] = useState(false);
@@ -292,7 +300,7 @@ export default function NewTicketPage() {
 
             if (!isOnline) {
                 try {
-                    const offlineTicket = {
+                    const offlineTicket: OfflineTicket = {
                         id: safeRandomUUID(),
                         idempotencyKey,
                         customerName: formData.customerName,
@@ -305,14 +313,14 @@ export default function NewTicketPage() {
                         expectedDuration: formData.expectedDuration ? Number(formData.expectedDuration) : null,
                         items: [],
                         createdAt: Date.now(),
-                        synced: 0 as const,
+                        synced: 0,
                         syncRetries: 0,
                         status: 'NEW',
                         totalAmount: Number(formData.repairPrice),
                         syncStatus: 'PENDING'
                     };
 
-                    await offlineDB.tickets.add(offlineTicket as any);
+                    await offlineDB.tickets.add(offlineTicket);
 
                     toast.success(
                         <div>
@@ -350,7 +358,14 @@ export default function NewTicketPage() {
             } else {
                 // 🛡️ FIX: Don't show success toast when auto-print is enabled - it causes confusion
                 // The print modal will show automatically
-                const ticketData = (res as any).data || res;
+                const resData = res as {
+                    success: boolean;
+                    data?: { id?: string; ticketId?: string; barcode?: string };
+                    id?: string;
+                    ticketId?: string;
+                    barcode?: string;
+                };
+                const ticketData = resData.data || resData;
                 const ticketId = ticketData.id || ticketData.ticketId;
                 const barcode = ticketData.barcode;
 
@@ -437,7 +452,7 @@ export default function NewTicketPage() {
                     </div>
 
                     {/* Step 1: Customer Card */}
-                    <div className="rounded-2xl p-0.5 bg-slate-200/50 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/10 shrink-0">
+                    <div className="rounded-2xl p-0.5 bg-slate-200/50 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/10 shrink-0 relative z-30">
                         <div className="rounded-[0.9rem] bg-white/95 dark:bg-zinc-900/90 p-2.5 space-y-2 backdrop-blur-md">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
@@ -589,7 +604,7 @@ export default function NewTicketPage() {
                     </div>
 
                     {/* Step 2: Device Details Card */}
-                    <div className="rounded-2xl p-0.5 bg-slate-200/50 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/10 shrink-0">
+                    <div className="rounded-2xl p-0.5 bg-slate-200/50 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/10 shrink-0 relative z-20">
                         <div className="rounded-[0.9rem] bg-white/95 dark:bg-zinc-900/90 p-2.5 space-y-2 backdrop-blur-md">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
@@ -622,7 +637,7 @@ export default function NewTicketPage() {
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                                <div>
+                                <div className="relative z-30">
                                     <label className="text-[11px] font-bold text-slate-700 dark:text-zinc-300 block mb-0.5">
                                         البراند <span className="text-red-500">*</span>
                                     </label>
@@ -639,7 +654,7 @@ export default function NewTicketPage() {
                                         inputClassName="h-8.5 text-xs rounded-lg border"
                                     />
                                 </div>
-                                <div>
+                                <div className="relative z-20">
                                     <label className="text-[11px] font-bold text-slate-700 dark:text-zinc-300 block mb-0.5">
                                         الموديل <span className="text-red-500">*</span>
                                     </label>
@@ -653,7 +668,7 @@ export default function NewTicketPage() {
                                         inputClassName="h-8.5 text-xs rounded-lg border"
                                     />
                                 </div>
-                                <div>
+                                <div className="relative z-10">
                                     <label className="text-[11px] font-bold text-slate-700 dark:text-zinc-300 block mb-0.5">
                                         IMEI / السيريال
                                     </label>
@@ -665,7 +680,7 @@ export default function NewTicketPage() {
                                         placeholder="السيريال..." 
                                     />
                                 </div>
-                                <div>
+                                <div className="relative z-10">
                                     <label className="text-[11px] font-bold text-slate-700 dark:text-zinc-300 block mb-0.5">
                                         اللون
                                     </label>
@@ -682,7 +697,7 @@ export default function NewTicketPage() {
                     </div>
 
                     {/* Step 3: Issues & Diagnosis Card */}
-                    <div className="rounded-2xl p-0.5 bg-slate-200/50 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/10 flex-1 min-h-0 flex flex-col">
+                    <div className="rounded-2xl p-0.5 bg-slate-200/50 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/10 flex-1 min-h-0 flex flex-col relative z-10">
                         <div className="rounded-[0.9rem] bg-white/95 dark:bg-zinc-900/90 p-2.5 space-y-1.5 backdrop-blur-md flex-1 min-h-0 flex flex-col justify-between">
                             <div className="flex items-center justify-between shrink-0">
                                 <div className="flex items-center gap-2">
@@ -705,7 +720,7 @@ export default function NewTicketPage() {
                             </div>
 
                             {/* Direct Search / Write Issue Input */}
-                            <div className="shrink-0">
+                            <div className="shrink-0 relative z-30">
                                 <SearchableSelect
                                     options={Array.from(new Set([...issuesList.map(i => i.name), ...POPULAR_ISSUES])).filter(name => !formData.selectedIssues.includes(name))}
                                     value=""

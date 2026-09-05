@@ -78,6 +78,8 @@ interface TicketPartsManagerProps {
     onUpdate?: () => void;
     isWarrantyTicket?: boolean;
     lastReturnedAt?: string | Date | null;
+    isAddingPartExternal?: boolean;
+    onCloseAddingPartExternal?: () => void;
 }
 
 export default function TicketPartsManager({
@@ -90,7 +92,9 @@ export default function TicketPartsManager({
     onChangeTechnician,
     onUpdate,
     isWarrantyTicket,
-    lastReturnedAt
+    lastReturnedAt,
+    isAddingPartExternal,
+    onCloseAddingPartExternal
 }: TicketPartsManagerProps) {
     const t = useTranslations("Tickets.PartsManager");
     const formatCurrencyCtx = useFormatCurrency();
@@ -103,6 +107,19 @@ export default function TicketPartsManager({
     const [isAddingPart, setIsAddingPart] = useState(false);
     const [usageType, setUsageType] = useState<"part" | "service" | "transfer">("part");
     const [isLoading, setIsLoading] = useState(false);
+
+    useEffect(() => {
+        if (isAddingPartExternal) {
+            setIsAddingPart(true);
+        }
+    }, [isAddingPartExternal]);
+
+    const handleCloseModal = () => {
+        if (!isLoading) {
+            setIsAddingPart(false);
+            onCloseAddingPartExternal?.();
+        }
+    };
 
     // Data State
     const [products, setProducts] = useState<ProductData[]>([]);
@@ -176,8 +193,9 @@ export default function TicketPartsManager({
                 } else {
                     toast.error(res.error || "فشل النقل");
                 }
-            } catch (error: any) {
-                toast.error(error.message || "فشل النقل");
+            } catch (error: unknown) {
+                const msg = error instanceof Error ? error.message : "فشل النقل";
+                toast.error(msg);
             } finally {
                 setIsLoading(false);
             }
@@ -217,11 +235,12 @@ export default function TicketPartsManager({
             if (res.success) {
                 toast.success(t('success'));
                 setIsAddingPart(false);
+                onCloseAddingPartExternal?.();
                 resetForm();
                 router.refresh();
                 onUpdate?.();
             } else {
-                toast.error((res as any).error || t('error'));
+                toast.error(res.error || t('error'));
             }
             setIsLoading(false);
 
@@ -244,11 +263,12 @@ export default function TicketPartsManager({
             if (res.success) {
                 toast.success(t('success'));
                 setIsAddingPart(false);
+                onCloseAddingPartExternal?.();
                 resetForm();
                 router.refresh();
                 onUpdate?.();
             } else {
-                toast.error((res as any).error || t('error'));
+                toast.error(res.error || t('error'));
             }
             setIsLoading(false);
         }
@@ -278,12 +298,13 @@ export default function TicketPartsManager({
             if (res.success) { 
                 toast.success(isDamaged ? `تم الحذف وتسجيله تالف (تحمل المهندس: ${lossPercent}%)` : "تم الحذف وإرجاع للمخزن"); 
                 router.refresh(); 
-                onUpdate?.(); 
+                onUpdate?.();
             } else {
                 toast.error("حدث خطأ أثناء الحذف");
             }
-        } catch (error: any) {
-            toast.error(error.message || "حدث خطأ غير متوقع");
+        } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : "حدث خطأ غير متوقع";
+            toast.error(msg);
         } finally {
             setIsDeleting(false);
             setDeletingPartId(null);
@@ -367,7 +388,7 @@ export default function TicketPartsManager({
                                                             "font-black text-sm transition-colors flex items-center gap-2",
                                                             isRefunded ? "text-muted-foreground line-through" : "text-foreground group-hover:text-cyan-600 dark:group-hover:text-cyan-400"
                                                         )}>
-                                                            {part.product?.name || (part as any).name}
+                                                            {part.product?.name || part.name}
                                                             
                                                             {isRefunded && (
                                                                 <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] font-black uppercase tracking-tighter shadow-sm animate-pulse">
@@ -483,7 +504,7 @@ export default function TicketPartsManager({
 
             <GlassModal
                 isOpen={isAddingPart}
-                onClose={() => !isLoading && setIsAddingPart(false)}
+                onClose={handleCloseModal}
                 title={t('title')}
                 className="max-w-lg"
             >

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React from "react";
 import { DailyTrendItem, PaymentBreakdownItem } from "../types";
@@ -16,6 +16,7 @@ import {
 } from "recharts";
 import { formatCurrency } from "@/lib/utils";
 import { TrendingUp, PieChart as PieIcon, AlertCircle } from "lucide-react";
+import Decimal from "decimal.js";
 
 interface DashboardChartsProps {
     trendData?: DailyTrendItem[];
@@ -40,10 +41,19 @@ export function DashboardCharts({
     paymentData = [],
     canViewConfidential = true
 }: DashboardChartsProps) {
+    const [mounted, setMounted] = React.useState(false);
+    React.useEffect(() => {
+        setMounted(true);
+    }, []);
+
     const hasTrendActivity = trendData.some((d) => d.revenue > 0);
     const hasPaymentActivity = paymentData.length > 0 && paymentData.some((p) => p.amount > 0);
 
-    const totalPaymentAmount = paymentData.reduce((sum, p) => sum + p.amount, 0);
+    const totalPaymentAmountDecimal = paymentData.reduce(
+        (sum, p) => sum.plus(new Decimal(p.amount || 0)),
+        new Decimal(0)
+    );
+    const totalPaymentAmount = totalPaymentAmountDecimal.toNumber();
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
@@ -65,7 +75,9 @@ export function DashboardCharts({
                     </div>
                 </div>
 
-                {hasTrendActivity ? (
+                {!mounted ? (
+                    <div className="h-64 sm:h-72 w-full animate-pulse bg-muted/20 rounded-xl" />
+                ) : hasTrendActivity ? (
                     <div className="h-64 sm:h-72 w-full pt-2">
                         <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -96,7 +108,7 @@ export function DashboardCharts({
                                         color: "#fff",
                                         fontSize: "12px"
                                     }}
-                                    formatter={(value: any) => [formatCurrency(Number(value || 0)), "المبيعات"]}
+                                    formatter={(value: unknown) => [formatCurrency(Number(value || 0)), "المبيعات"]}
                                     labelFormatter={(label) => `التاريخ: ${label}`}
                                 />
                                 <Area
@@ -141,7 +153,9 @@ export function DashboardCharts({
                     </div>
                 </div>
 
-                {hasPaymentActivity ? (
+                {!mounted ? (
+                    <div className="h-44 w-full animate-pulse bg-muted/20 rounded-xl" />
+                ) : hasPaymentActivity ? (
                     <div className="flex flex-col items-center">
                         <div className="h-44 w-full">
                             <ResponsiveContainer width="100%" height="100%">
@@ -161,7 +175,7 @@ export function DashboardCharts({
                                         })}
                                     </Pie>
                                     <Tooltip
-                                        formatter={(value: any) => [formatCurrency(Number(value || 0)), "المبلغ"]}
+                                        formatter={(value: unknown) => [formatCurrency(Number(value || 0)), "المبلغ"]}
                                         contentStyle={{
                                             backgroundColor: "rgba(15, 23, 42, 0.9)",
                                             borderRadius: "12px",
@@ -178,8 +192,8 @@ export function DashboardCharts({
                         <div className="w-full space-y-2 mt-3 pt-3 border-t border-border/40">
                             {paymentData.slice(0, 4).map((p, idx) => {
                                 const color = PAYMENT_COLORS[p.method.toUpperCase()] || "#64748b";
-                                const pct = totalPaymentAmount > 0
-                                    ? Math.round((p.amount / totalPaymentAmount) * 100)
+                                const pct = totalPaymentAmountDecimal.gt(0)
+                                    ? new Decimal(p.amount || 0).dividedBy(totalPaymentAmountDecimal).times(100).round().toNumber()
                                     : 0;
                                 return (
                                     <div key={idx} className="flex items-center justify-between text-xs">
