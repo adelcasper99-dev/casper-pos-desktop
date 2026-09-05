@@ -21,7 +21,11 @@ const changePasswordSchema = z.object({
 export const changeSuperAdminPassword = secureAction(async (data: z.infer<typeof changePasswordSchema>) => {
     // 1. Session Guard (Global Admin or Super Admin session)
     const session = await getSession();
-    const isGlobal = session?.user?.isGlobalAdmin || session?.user?.id === 'super-admin' || session?.user?.role === 'SUPER_ADMIN' || session?.user?.roleStr === 'SUPER_ADMIN';
+    const isGlobal = Boolean(
+        session?.user?.isGlobalAdmin ||
+        session?.user?.id === 'super-admin' ||
+        session?.user?.role === 'SUPER_ADMIN'
+    );
     if (!session || !isGlobal) {
         throw new AppError(ErrorCodes.FORBIDDEN, "غير مصرح لك بتغيير الرقم السري للمشرف العام");
     }
@@ -35,7 +39,7 @@ export const changeSuperAdminPassword = secureAction(async (data: z.infer<typeof
         const defaultPass = process.env.SUPER_ADMIN_PASS || 'GenuineWise@92';
 
         // Check against current user in database if logged in as DB user
-        let currentUser = null;
+        let currentUser: { id: string; password?: string | null } | null = null;
         if (session.user.id && session.user.id !== 'super-admin') {
             currentUser = await prisma.user.findUnique({
                 where: { id: session.user.id }

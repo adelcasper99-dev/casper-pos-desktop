@@ -161,7 +161,7 @@ export default function NewTicketPage() {
 
         // Load settings for WhatsApp
         getEffectiveStoreSettings().then(res => {
-            if (res.success) setSettings(res.data);
+            if (res.success && res.data) setSettings(res.data as unknown as TicketPageSettings);
         });
     }, []);
 
@@ -389,7 +389,7 @@ export default function NewTicketPage() {
                 if (ticketId) {
                     localStorage.removeItem(STORAGE_KEY); // Clear draft on success
                     // Use replace to avoid history stack issues
-                    if (shouldAutoPrint(settings, 'ticket')) {
+                    if (settings && shouldAutoPrint(settings as any, 'ticket')) {
                         router.replace(`/${locale}/maintenance/tickets/${ticketId}?print=true`);
                     } else {
                         router.replace(`/${locale}/maintenance/tickets/${ticketId}`);

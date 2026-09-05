@@ -289,12 +289,12 @@ describe('Advance Deposit & Settlement Architecture Proofs', () => {
             // Raw Assertion 1: Ticket fields reset
             const updateCall = mockPrisma.ticket.update.mock.calls.find((c: any[]) => c[0].where?.id === 't-006');
             expect(updateCall).toBeDefined();
-            expect(updateCall[0].data.status).toBe('IN_PROGRESS');
-            expect(updateCall[0].data.deliveredAt).toBeNull();
-            expect(updateCall[0].data.warrantyExpiryDate).toBeNull();
-            expect(new Decimal(updateCall[0].data.finalCustomerPrice).toNumber()).toBe(0);
-            expect(new Decimal(updateCall[0].data.techCommissionAmount).toNumber()).toBe(0);
-            expect(new Decimal(updateCall[0].data.centerLaborProfit).toNumber()).toBe(0);
+            expect(updateCall![0].data.status).toBe('IN_PROGRESS');
+            expect(updateCall![0].data.deliveredAt).toBeNull();
+            expect(updateCall![0].data.warrantyExpiryDate).toBeNull();
+            expect(new Decimal(updateCall![0].data.finalCustomerPrice).toNumber()).toBe(0);
+            expect(new Decimal(updateCall![0].data.techCommissionAmount).toNumber()).toBe(0);
+            expect(new Decimal(updateCall![0].data.centerLaborProfit).toNumber()).toBe(0);
 
             // Raw Assertion 2: GL distribution reversed via reverseJournalEntry
             expect(mockAccountingEngine.reverseJournalEntry).toHaveBeenCalledWith(

@@ -67,7 +67,16 @@ describe('50K Scale Benchmark & Multi-Tenant Query Verification', () => {
         }
         
         // 2. Populate 10,000 Products in chunks
-        const productsData = [];
+        const productsData: Array<{
+            id: string;
+            tenantId: string;
+            name: string;
+            sku: string;
+            costPrice: Decimal;
+            sellPrice: Decimal;
+            categoryId: string;
+            trackStock: boolean;
+        }> = [];
         for (let i = 1; i <= 10000; i++) {
             const tenantNum = (i % 5) + 1;
             productsData.push({
@@ -92,7 +101,18 @@ describe('50K Scale Benchmark & Multi-Tenant Query Verification', () => {
         }
 
         // 3. Populate 10,000 Sales in chunks
-        const salesData = [];
+        const salesData: Array<{
+            id: string;
+            tenantId: string;
+            branchId: string;
+            warehouseId: string;
+            userId: string;
+            shiftId: string;
+            totalAmount: Decimal;
+            paymentMethod: string;
+            status: string;
+            createdAt: Date;
+        }> = [];
         const baseDate = new Date('2026-01-01').getTime();
         for (let i = 1; i <= 10000; i++) {
             const tenantNum = (i % 5) + 1;

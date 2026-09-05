@@ -252,8 +252,7 @@ describe('Multi-Tenant Isolation & RLS Security', () => {
         // 3. Calling editTenant without Super Admin session MUST fail
         const editRes = await editTenant({
             tenantId: 'tenant-A',
-            name: 'Hacked Name',
-            domain: 'tenant-A'
+            name: 'Hacked Name'
         });
         expect(editRes.success).toBe(false);
         expect(editRes.error).toBeDefined();

@@ -972,8 +972,8 @@ export const rejectTicket = secureAction(async (data: {
         // Handle Automatic Deposit Refund if requested and deposit exists
         const amountPaidDec = new Decimal(existingTicket.amountPaid?.toString() || '0');
         if (refundDeposit && amountPaidDec.gt(0)) {
-            const shiftResult = await getCurrentShift(user.id);
-            if (!shiftResult.success || !shiftResult.shift) {
+            const shiftResult = await getCurrentShiftInternal({ userId: user.id });
+            if (!shiftResult.shift || shiftResult.shift.status !== 'OPEN') {
                 throw new Error("لا توجد وردية مفتوحة لصرف العربون من الدرج. يرجى فتح وردية أولاً.");
             }
             const currentShift = shiftResult.shift;
