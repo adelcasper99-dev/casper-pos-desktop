@@ -189,7 +189,7 @@ export default function TenantLicenseInfo() {
                             <div className="p-3 rounded-xl bg-background/50 border border-border/30 space-y-1">
                                 <span className="text-[10px] font-semibold text-muted-foreground block">الأجهزة المسجلة</span>
                                 <span className="text-xs font-black text-foreground block">
-                                    {license?.devicesCount || 1} جهاز طرفي
+                                    {license ? `${license.devicesCount} جهاز طرفي` : '—'}
                                 </span>
                             </div>
                         </div>
