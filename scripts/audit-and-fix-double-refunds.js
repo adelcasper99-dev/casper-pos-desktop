@@ -33,11 +33,11 @@ async function auditAndFixDoubleRefunds() {
             const totalRefunds = refunds.reduce((sum, p) => sum.plus(new Decimal(p.amount?.toString() || '0')), new Decimal(0));
             const amountPaidCurrent = new Decimal(t.amountPaid?.toString() || '0');
 
-            const hasOverRefund = totalRefunds.gt(totalPaidPayments) && totalPaidPayments.gt(0);
             const hasNegativeBalance = amountPaidCurrent.lt(0);
-            const hasZeroPaidWithRefund = totalPaidPayments.isZero() && totalRefunds.gt(0);
+            const hasUnremediatedOverRefund = totalRefunds.gt(totalPaidPayments) && (t.status !== 'CANCELLED' || !amountPaidCurrent.isZero());
+            const hasZeroPaidWithRefund = totalPaidPayments.isZero() && totalRefunds.gt(0) && (t.status !== 'CANCELLED' || !amountPaidCurrent.isZero());
 
-            if (hasOverRefund || hasNegativeBalance || hasZeroPaidWithRefund) {
+            if (hasNegativeBalance || hasUnremediatedOverRefund || hasZeroPaidWithRefund) {
                 const discrepancy = totalRefunds.minus(totalPaidPayments);
                 anomalies.push({
                     id: t.id,
@@ -80,20 +80,6 @@ async function auditAndFixDoubleRefunds() {
                             conditionNotes: `[AUDIT FIX ${new Date().toISOString()}] Adjusted negative/over-refunded amountPaid from ${item.amountPaidCurrent} to 0.00`
                         }
                     });
-
-                    // Record ActionLog
-                    try {
-                        await tx.actionLog.create({
-                            data: {
-                                tenantId: item.tenantId,
-                                action: 'AUDIT_REFUND_REMEDIATION',
-                                details: `Corrected Ticket #${item.barcode}: Paid=${item.totalPaid}, Refunded=${item.totalRefunds}, Discrepancy=${item.discrepancy} EGP. Clamped amountPaid to 0.00`,
-                                userId: 'SYSTEM_AUDIT'
-                            }
-                        });
-                    } catch (e) {
-                        console.warn(`  ⚠️ ActionLog warning for ticket #${item.barcode}:`, e.message);
-                    }
 
                     auditHistory.push({
                         ...item,
