@@ -115,28 +115,28 @@ export async function getSaleById(
       success: true,
       data: {
         id: sale.id,
-        invoiceNumber: (sale as any).invoiceNumber ?? null,
+        invoiceNumber: sale.invoiceNumber ?? null,
         status: sale.status,
         paymentMethod: sale.paymentMethod,
         customerName: sale.customerName ?? null,
-        customerId: (sale as any).customerId ?? null,
+        customerId: sale.customerId ?? null,
         totalAmount: Number(sale.totalAmount),
         createdAt: sale.createdAt.toISOString(),
         items: sale.items.map((i) => ({
           id: i.id,
           productId: i.productId,
-          productName: (i as any).product?.name ?? "—",
-          sku: (i as any).product?.sku ?? "—",
-          itemType: (i as any).itemType ?? "PRODUCT",
+          productName: i.product?.name ?? "—",
+          sku: i.product?.sku ?? "—",
+          itemType: i.itemType ?? "PRODUCT",
           quantity: Number(i.quantity),
-          refundedQty: (i as any).refundedQty ?? 0,
+          refundedQty: Number(i.refundedQty ?? 0),
           unitPrice: Number(i.unitPrice),
         })),
       },
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[getSaleById]", err);
-    return { success: false, error: err.message };
+    return { success: false, error: err instanceof Error ? err.message : "Error fetching sale" };
   }
 }
 
@@ -166,17 +166,17 @@ export async function getPurchaseById(
         items: invoice.items.map((i) => ({
           id: i.id,
           productId: i.productId,
-          productName: (i as any).product?.name ?? "—",
-          sku: (i as any).product?.sku ?? "—",
+          productName: i.product?.name ?? "—",
+          sku: i.product?.sku ?? "—",
           quantity: Number(i.quantity),
-          returnedQty: (i as any).returnedQty ?? 0,
+          returnedQty: Number(i.returnedQty ?? 0),
           unitCost: Number(i.unitCost),
         })),
       },
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[getPurchaseById]", err);
-    return { success: false, error: err.message };
+    return { success: false, error: err instanceof Error ? err.message : "Error fetching purchase" };
   }
 }
 
@@ -184,10 +184,11 @@ export async function getTicketById(
   id: string
 ): Promise<{ success: boolean; data?: FetchedTicket; error?: string }> {
   try {
-    const ticket = await (prisma as any).ticket.findUnique({
+    const ticket = await prisma.ticket.findUnique({
       where: { id },
       include: {
         customer: { select: { name: true } },
+        payments: { where: { type: "REFUND" } },
         parts: {
           include: {
             product: { select: { name: true, sku: true } },
@@ -198,32 +199,61 @@ export async function getTicketById(
 
     if (!ticket) return { success: false, error: "التذكرة غير موجودة" };
 
-    const partItems: TicketLineItem[] = (ticket.parts ?? []).map((p: any) => ({
+    const partItems: TicketLineItem[] = (ticket.parts ?? []).map((p) => ({
       id: p.id,
-      partId: p.productId,
+      partId: p.productId ?? "",
       partName: p.product?.name ?? p.name ?? "—",
       sku: p.product?.sku ?? "—",
-      quantity: p.quantity,
-      refundedQty: p.refundedQty ?? 0,
+      quantity: Number(p.quantity ?? 1),
+      refundedQty: Number(p.refundedQty ?? 0),
       unitPrice: Number(p.price ?? 0),
       itemType: "PRODUCT" as const,
     }));
 
-    // In desktop schema, services might be simple entries or not existing as a separate model
-    // Let's assume maintenance costs are in RepairPrice
+    // Financial Disaggregation: Labor Fee = max(0, repairPrice - sum(parts.price * quantity))
+    const repairPriceDec = new Decimal(ticket.repairPrice?.toString() || "0");
+    const totalPartsPrice = (ticket.parts ?? []).reduce(
+      (sum: Decimal, p) => sum.plus(new Decimal(p.price?.toString() || "0").times(Number(p.quantity ?? 1))),
+      new Decimal(0)
+    );
+    const totalLaborFee = Decimal.max(0, repairPriceDec.minus(totalPartsPrice));
+
+    // Calculate historical refunds
+    const totalRefundPayments = (ticket.payments ?? []).reduce(
+      (sum: Decimal, p) => sum.plus(new Decimal(p.amount?.toString() || "0")),
+      new Decimal(0)
+    );
+    const partsRefundedAmount = (ticket.parts ?? []).reduce(
+      (sum: Decimal, p) => sum.plus(new Decimal(p.price?.toString() || "0").times(Number(p.refundedQty ?? 0))),
+      new Decimal(0)
+    );
+    const laborRefundedAmount = Decimal.max(0, totalRefundPayments.minus(partsRefundedAmount));
+    const availableLabor = Decimal.max(0, totalLaborFee.minus(laborRefundedAmount));
+
     const serviceItems: TicketLineItem[] = [];
-    if (Number(ticket.repairPrice) > 0) {
-       serviceItems.push({
+    if (totalLaborFee.gt(0)) {
+      if (availableLabor.gt(0)) {
+        serviceItems.push({
           id: `SVC-${ticket.id}`,
           description: "تكلفة الإصلاح (المصنعية)",
           quantity: 1,
           refundedQty: 0,
-          unitPrice: Number(ticket.repairPrice),
+          unitPrice: availableLabor.toNumber(),
           itemType: "SERVICE" as const,
-       });
+        });
+      } else {
+        serviceItems.push({
+          id: `SVC-${ticket.id}`,
+          description: "تكلفة الإصلاح (المصنعية - مستردة)",
+          quantity: 1,
+          refundedQty: 1,
+          unitPrice: totalLaborFee.toNumber(),
+          itemType: "SERVICE" as const,
+        });
+      }
     }
 
-    const total = Number(ticket.totalAmount ?? 0);
+    const netRefundableAmount = Math.max(0, Number(ticket.amountPaid ?? 0));
 
     return {
       success: true,
@@ -231,16 +261,16 @@ export async function getTicketById(
         id: ticket.id,
         ticketNumber: ticket.barcode ?? null,
         status: ticket.status,
-        customerName: ticket.customer?.name ?? (ticket as any).customerName ?? null,
-        customerId: (ticket as any).customerId ?? null,
-        totalAmount: total,
+        customerName: ticket.customer?.name ?? ticket.customerName ?? null,
+        customerId: ticket.customerId ?? null,
+        totalAmount: netRefundableAmount,
         createdAt: ticket.createdAt.toISOString(),
         items: [...partItems, ...serviceItems],
       },
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[getTicketById]", err);
-    return { success: false, error: err.message };
+    return { success: false, error: err instanceof Error ? err.message : "Error fetching ticket" };
   }
 }
 
@@ -281,9 +311,7 @@ export const issueStoreCredit = secureAction(
         customerId,
         type: "CREDIT",
         amount: amountDecimal,
-        description:
-          `رصيد مرتجع (Store Credit) — مرجع: ${sourceId.slice(0, 8).toUpperCase()}` +
-          (reason ? ` | ${reason}` : ""),
+        description: `رصيد مرتجع (Store Credit) — مرجع: ${sourceId.slice(0, 8).toUpperCase()}${reason ? ` | ${reason}` : ""}`,
         reference: sourceId,
         createdBy: currentUser.id,
         branchId: currentUser.branchId || null
@@ -360,7 +388,7 @@ export async function getTicketForRework(
   ticketId: string
 ): Promise<{ success: boolean; data?: ReworkPrefill; error?: string }> {
   try {
-    const ticket = await (prisma as any).ticket.findFirst({
+    const ticket = await prisma.ticket.findFirst({
       where: {
         OR: [
           { id: ticketId },
@@ -396,11 +424,12 @@ export async function getTicketForRework(
         issueDescription: `إعادة إصلاح ضمان — الأصل: ${ticket.barcode} | ${ticket.issueDescription ?? ""}`,
       },
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[getTicketForRework]", err);
-    return { success: false, error: err.message };
+    return { success: false, error: err instanceof Error ? err.message : "Error fetching rework ticket" };
   }
 }
+
 // ──────────────────────────────────────────────
 // Advanced Search Fetcher
 // ──────────────────────────────────────────────
@@ -431,7 +460,7 @@ export async function searchReturns(
     if (!q && !startDate && !endDate) return { success: true, data: [] };
 
     let results: SearchResult[] = [];
-    const dateFilter: any = {};
+    const dateFilter: { gte?: Date; lte?: Date } = {};
     if (startDate) dateFilter.gte = new Date(startDate);
     if (endDate) dateFilter.lte = new Date(endDate);
 
@@ -452,7 +481,7 @@ export async function searchReturns(
                ]
              } : {}
           ]
-        } as any,
+        },
         include: {
           items: {
             include: {
@@ -465,7 +494,7 @@ export async function searchReturns(
       });
       results = sales.flatMap((s) => {
         const items = s.items.length > 0 ? s.items : [null];
-        return items.map((item: any) => ({
+        return items.map((item) => ({
           id: s.id,
           label: `${s.customerName ?? s.id.slice(0, 8)}`,
           subLabel: `${s.customerPhone ?? ""} | ${s.createdAt.toLocaleDateString()}`,
@@ -476,7 +505,7 @@ export async function searchReturns(
           quantity: item?.quantity ?? 0,
           invoiceDate: s.createdAt.toISOString(),
           unitPrice: Number(item?.unitPrice ?? 0),
-          referenceNumber: (s as any).invoiceNumber ?? s.id.slice(0, 8).toUpperCase(),
+          referenceNumber: s.invoiceNumber ?? s.id.slice(0, 8).toUpperCase(),
         }));
       });
     } else if (type === "PURCHASES") {
@@ -504,12 +533,12 @@ export async function searchReturns(
       });
       results = purchases.flatMap((p) => {
         const items = p.items.length > 0 ? p.items : [null];
-        return items.map((item: any) => ({
+        return items.map((item) => ({
           id: p.id,
-          label: `${p.invoiceNumber ?? p.id.slice(0, 8)} - ${p.supplier.name}`,
+          label: `${p.invoiceNumber ?? p.id.slice(0, 8)} - ${p.supplier?.name ?? "—"}`,
           subLabel: p.purchaseDate.toLocaleDateString(),
           total: Number(p.totalAmount),
-          customerName: p.supplier.name,
+          customerName: p.supplier?.name ?? "—",
           customerPhone: "—",
           productName: item?.product?.name ?? "—",
           quantity: item?.quantity ?? 0,
@@ -519,7 +548,7 @@ export async function searchReturns(
         }));
       });
     } else if (type === "MAINTENANCE") {
-      const tickets = await (prisma as any).ticket.findMany({
+      const tickets = await prisma.ticket.findMany({
         where: {
           AND: [
             hasDates ? { createdAt: dateFilter } : {},
@@ -534,7 +563,7 @@ export async function searchReturns(
               ]
             } : {}
           ]
-        } as any,
+        },
         include: {
           parts: {
             include: {
@@ -545,19 +574,20 @@ export async function searchReturns(
         take: 30,
         orderBy: { createdAt: "desc" },
       });
-      results = tickets.flatMap((t: any) => {
+      results = tickets.flatMap((t) => {
         const parts = Array.isArray(t.parts) && t.parts.length > 0
           ? t.parts
           : [{
               quantity: 1,
               price: Number(t.repairPrice ?? 0),
-              product: { name: "خدمة صيانة", sku: "SERVICE" }
+              product: { name: "خدمة صيانة", sku: "SERVICE" },
+              name: "خدمة صيانة"
             }];
-        return parts.map((part: any) => ({
+        return parts.map((part) => ({
           id: t.id,
-          label: `${t.Barcode ?? t.barcode ?? t.id.slice(0, 8)} - ${t.customerName ?? "—"}`,
+          label: `${t.barcode ?? t.id.slice(0, 8)} - ${t.customerName ?? "—"}`,
           subLabel: `${t.customerPhone ?? ""} | ${t.createdAt.toLocaleDateString()}`,
-          total: Number(t.totalAmount ?? 0),
+          total: Number(t.amountPaid ?? t.repairPrice ?? 0),
           customerName: t.customerName ?? "—",
           customerPhone: t.customerPhone ?? "—",
           productName: part.product?.name ?? part.name ?? "—",
@@ -570,7 +600,7 @@ export async function searchReturns(
     }
 
     return { success: true, data: results };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[searchReturns]", err);
     return { success: false, data: [] };
   }

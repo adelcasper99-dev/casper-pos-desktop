@@ -35,7 +35,7 @@ async function getNextTicketNumber() {
  * Returns true if the ticket is LOCKED.
  * Admins can always bypass the lock.
  */
-function checkTicketLock(ticket: { status: string }, user: any) {
+function checkTicketLock(ticket: { status: string }, user: { permissions?: string[]; role?: string; id?: string } | null) {
     if (!ticket || !user) return false;
     const canBypassLock = hasPermission(user.permissions, PERMISSIONS.TICKET_OVERRIDE);
     if (canBypassLock) return false;
@@ -58,28 +58,26 @@ export const getTickets = secureAction(async (filters?: {
     endDate?: string;
 }) => {
     const currentUser = await getCurrentUser();
-    const branchFilter = getBranchFilter(currentUser);
+    if (!currentUser) throw new Error("Unauthorized");
 
+    // Dynamic Filter Construction
     const where: Prisma.TicketWhereInput = {
         deletedAt: null,
-        ...branchFilter // 🔒 Branch-level isolation
     };
 
-    if (filters?.status) {
-        const s = filters.status.toLowerCase();
-        if (s === 'returns') {
-            where.isWarrantyReturn = true;
-        } else if (s === 'warranty') {
-            where.warrantyExpiryDate = { gte: new Date() };
-        } else if (s !== 'all') {
-            where.status = s.toUpperCase();
-        }
+    // Role-based branch isolation
+    if (currentUser.role !== 'ADMIN' && currentUser.branchId) {
+        where.currentBranchId = currentUser.branchId;
+    } else if (filters?.branchId && filters.branchId !== 'all') {
+        where.currentBranchId = filters.branchId;
     }
 
-    if (filters?.technicianId && filters.technicianId !== 'unassigned') {
+    if (filters?.status && filters.status !== 'all') {
+        where.status = filters.status;
+    }
+
+    if (filters?.technicianId && filters.technicianId !== 'all') {
         where.technicianId = filters.technicianId;
-    } else if (filters?.technicianId === 'unassigned') {
-        where.technicianId = null;
     }
 
     if (filters?.search) {
@@ -88,24 +86,14 @@ export const getTickets = secureAction(async (filters?: {
             { customerName: { contains: filters.search } },
             { customerPhone: { contains: filters.search } },
             { deviceModel: { contains: filters.search } },
-            { deviceImei: { contains: filters.search } },
+            { issueDescription: { contains: filters.search } },
         ];
-    }
-
-    if (filters?.branchId && filters.branchId !== 'ALL') {
-        if (!branchFilter.currentBranchId) { // Only allow override if no forced branch filter (e.g. Admin)
-            where.currentBranchId = filters.branchId;
-        }
     }
 
     if (filters?.startDate || filters?.endDate) {
         where.createdAt = {};
         if (filters.startDate) where.createdAt.gte = new Date(filters.startDate);
-        if (filters.endDate) {
-            const endDate = new Date(filters.endDate);
-            endDate.setHours(23, 59, 59, 999);
-            where.createdAt.lte = endDate;
-        }
+        if (filters.endDate) where.createdAt.lte = new Date(filters.endDate);
     }
 
     const tickets = await prisma.ticket.findMany({
@@ -113,10 +101,12 @@ export const getTickets = secureAction(async (filters?: {
         orderBy: { createdAt: 'desc' },
         include: {
             technician: true,
-            currentBranch: true,
+            creator: true,
             customer: true,
-            clientUser: true,
-            clientSupplier: true,
+            currentBranch: true,
+            destinationBranch: true,
+            parts: true,
+            payments: true,
             shift: true,
             movement: true,
             completedBy: true,
@@ -125,7 +115,7 @@ export const getTickets = secureAction(async (filters?: {
     });
 
     const deliveredCount = tickets.filter(t => ['DELIVERED', 'PAID_DELIVERED', 'PICKED_UP'].includes(t.status)).length;
-    const returnCount = tickets.filter(t => (t as any).returnCount > 0 || t.status === 'RETURNED_FOR_REFIX').length;
+    const returnCount = tickets.filter(t => (t.returnCount ?? 0) > 0 || t.status === 'RETURNED_FOR_REFIX').length;
     const ratio = (deliveredCount + returnCount) > 0 ? (deliveredCount / (deliveredCount + returnCount)) * 100 : 0;
 
     // 🚀 Intelligence: Fetch success ratio for all customers in this batch in parallel
@@ -152,9 +142,9 @@ export const getTickets = secureAction(async (filters?: {
 
     const customerSuccessMap: Record<string, string> = {};
     customerIds.forEach(id => {
-        const total = totalCounts.find(c => c.customerId === id)?._count.id || 0;
-        const success = successCounts.find(c => c.customerId === id)?._count.id || 0;
-        customerSuccessMap[id] = total > 0 ? ((success / total) * 100).toFixed(0) : "100";
+        const totalCustTickets = totalCounts.find(c => c.customerId === id)?._count.id || 0;
+        const successCustTickets = successCounts.find(c => c.customerId === id)?._count.id || 0;
+        customerSuccessMap[id] = totalCustTickets > 0 ? ((successCustTickets / totalCustTickets) * 100).toFixed(0) : "100";
     });
 
     const processedTickets = tickets.map(t => {
@@ -375,11 +365,11 @@ export const createTicket = secureAction(async (rawData: z.infer<typeof ticketSc
     if (retries >= MAX_RETRIES) throw new Error("System is busy (ID Collision), please try again.");
 
     // 2. SMART LINKING: User / Supplier / Customer by Phone
-    let customerId = (data as any).customerId;
+    let customerId: string | undefined = (schemaRaw as { customerId?: string }).customerId;
     let clientUserId: string | undefined = undefined;
     let clientSupplierId: string | undefined = undefined;
 
-    const result = await prisma.$transaction(async (tx: any) => {
+    const result = await prisma.$transaction(async (tx) => {
         // TK-02: Secure Customer Linking (Atomic Upsert)
         if (data.customerPhone && data.customerPhone.trim().length > 0) {
             const normalizedPhone = data.customerPhone.trim();
@@ -668,7 +658,7 @@ export const updateTicketDetails = secureAction(async (ticketId: string, updates
 
     const existing = await prisma.ticket.findUnique({ where: { id: ticketId }, include: { technician: true } });
     const currentUser = await getCurrentUser();
-    if (existing && checkTicketLock(existing, currentUser as any)) {
+    if (existing && checkTicketLock(existing, currentUser)) {
         throw new Error("هذه التذكرة مغلقة ولا يمكن تعديل بياناتها.");
     }
 
@@ -823,7 +813,7 @@ export const logTicketNotification = secureAction(async (data: {
     ticketId: string;
     type: string;
     status: string;
-    metadata?: any;
+    metadata?: Record<string, unknown>;
 }) => {
     const { ticketId, type, status, metadata } = data;
     const user = await getCurrentUser();
@@ -1226,15 +1216,16 @@ export const refundTicket = secureAction(async (data: {
         });
 
         // 2. Update financials
-        const newAmountPaid = currentPaid - amount;
-        const repairPrice = Number(ticket.repairPrice) || 0;
+        const refundDecimal = new Decimal(amount);
+        const newAmountPaid = new Decimal(currentPaid).minus(refundDecimal);
+        const ticketRepairPrice = new Decimal(ticket.repairPrice || 0);
         let paymentStatus = 'partial';
-        if (newAmountPaid <= 0) paymentStatus = 'unpaid';
-        else if (repairPrice > 0 && newAmountPaid >= repairPrice) paymentStatus = 'paid';
+        if (newAmountPaid.lte(0)) paymentStatus = 'unpaid';
+        else if (ticketRepairPrice.gt(0) && newAmountPaid.gte(ticketRepairPrice)) paymentStatus = 'paid';
         await tx.ticket.update({
             where: { id: ticketId },
             data: {
-                amountPaid: { decrement: amount },
+                amountPaid: { decrement: refundDecimal },
                 paymentStatus
             }
         });
@@ -1246,7 +1237,7 @@ export const refundTicket = secureAction(async (data: {
                 data: {
                     customerId: ticket.customerId,
                     type: 'CREDIT',
-                    amount: new Decimal(amount),
+                    amount: refundDecimal,
                     description: `Ticket #${ticket.barcode} - Refund`,
                     reference: ticket.id,
                     createdBy: user.id
@@ -1255,20 +1246,20 @@ export const refundTicket = secureAction(async (data: {
 
             await tx.customer.update({
                 where: { id: ticket.customerId },
-                data: { balance: { decrement: new Decimal(amount) } }
+                data: { balance: { decrement: refundDecimal } }
             });
 
             await tx.shift.update({
                 where: { id: currentShift.id },
                 data: {
-                    totalRefunds: { increment: new Decimal(amount) },
-                    totalAccountRefunds: { increment: new Decimal(amount) },
+                    totalRefunds: { increment: refundDecimal },
+                    totalAccountRefunds: { increment: refundDecimal },
                     lastHeartbeat: new Date()
                 }
             });
         } else {
-            const absAmount = new Decimal(amount);
-            const shiftUpdate: any = {
+            const absAmount = refundDecimal;
+            const shiftUpdate: Prisma.ShiftUpdateInput = {
                 totalRefunds: { increment: absAmount },
                 lastHeartbeat: new Date()
             };
@@ -1958,7 +1949,7 @@ export const addTicketPart = secureAction(async (data: {
                         quantity: data.quantity,
                         reason: `Used in Ticket #${ticket.barcode}`,
                         branchId: user.branchId || null
-                    } as any
+                    }
                 });
 
                 await tx.product.update({
@@ -2335,7 +2326,7 @@ export const getProductsForSelector = secureAction(async (data: { search?: strin
             stockValue = st ? st.quantity : new Decimal(0);
         }
 
-        const trackStock = (p as any).trackStock !== false;
+        const trackStock = (p as { trackStock?: boolean }).trackStock !== false;
 
         return {
             id: p.id,
@@ -2460,7 +2451,7 @@ export const processTicketPayment = secureAction(async (data: {
                         referenceType: isActuallyRefund ? 'TICKET_REFUND' : 'TICKET',
                         description: txDesc,
                         branchId: currentUser?.branchId || null
-                    } as any
+                    }
                 });
             }
 
@@ -2918,7 +2909,7 @@ export const processTicketPayment = secureAction(async (data: {
             }
 
             // Unified Accounting Integration (Fix B17 & B18)
-            let je: any = null;
+            let je: { id: string } | null = null;
             if (isActuallyRefund) {
                 je = await AccountingEngine.recordRefund({
                     amount: effectiveAmount.abs().toNumber(),
@@ -3807,7 +3798,7 @@ export const fullTicketReturn = secureAction(async (data: {
                     }
                 });
             } else {
-                const shiftUpdate: any = {
+                const shiftUpdate: Prisma.ShiftUpdateInput = {
                     totalRefunds: { increment: absAmount }
                 };
 
@@ -4043,6 +4034,10 @@ export const initiateWarrantyReturn = secureAction(async (parentTicketId: string
         if (i === 2) throw new Error("تعذّر توليد رقم تذكرة فريد. حاول مرة أخرى.");
     }
 
+    if (new Decimal(parent.amountPaid?.toString() || '0').lte(0) && (parent.status === 'CANCELLED' || parent.returnCount > 0)) {
+        throw new Error("لا يمكن إنشاء تذكرة ضمان لتذكرة تم استرداد كامل قيمتها نقدياً.");
+    }
+
     const result = await prisma.$transaction(async (tx) => {
         // Create child return ticket
         const childTicket = await tx.ticket.create({
@@ -4085,10 +4080,15 @@ export const initiateWarrantyReturn = secureAction(async (parentTicketId: string
         });
 
         // Audit note on child
+        let childAuditText = `📋 مرتجع ضمان — منشأ من التذكرة الأصلية #${parent.barcode}`;
+        if (parent.returnCount > 0) {
+            childAuditText += ` (⚠️ تنبيه: تم إجراء مرتجع جزئي سابق على التذكرة الأصلية — البنود المستردة خارج تغطية الضمان)`;
+        }
+
         await tx.ticketNote.create({
             data: {
                 ticketId: childTicket.id,
-                text: `📋 مرتجع ضمان — منشأ من التذكرة الأصلية #${parent.barcode}`,
+                text: childAuditText,
                 author: user.name || user.username || "System",
                 isInternal: true,
             }
@@ -4127,9 +4127,10 @@ export const partialRefundTicket = secureAction(async (data: {
     ticketId: string;
     items: Array<{ itemId: string; quantity: number; isDamaged: boolean }>;
     refundMethod: 'CASH' | 'STORE_CREDIT';
+    idempotencyKey?: string;
     csrfToken?: string;
 }) => {
-    const { ticketId, items, refundMethod } = data;
+    const { ticketId, items, refundMethod, idempotencyKey } = data;
     const currentUser = await getCurrentUser();
     if (!currentUser) throw new Error("Unauthorized");
 
@@ -4140,12 +4141,49 @@ export const partialRefundTicket = secureAction(async (data: {
     const currentShift = shiftResult.shift;
 
     const result = await prisma.$transaction(async (tx) => {
+        const isPostgres = process.env.DATABASE_URL?.startsWith('postgres');
+        if (isPostgres) {
+            try {
+                await tx.$queryRawUnsafe(`SELECT id, "amountPaid", "repairPrice", status FROM "Ticket" WHERE id = $1 FOR UPDATE`, ticketId);
+            } catch (e) {
+                // Non-fatal if table alias or driver differs
+            }
+        }
+
         const ticket = await tx.ticket.findFirst({
             where: { OR: [{ id: ticketId }, { barcode: ticketId }] },
-            include: { parts: true, customer: true }
+            include: { parts: true, customer: true, payments: { where: { type: 'REFUND' } } }
         });
 
         if (!ticket) throw new Error("Ticket not found");
+
+        // Idempotency check
+        if (idempotencyKey) {
+            const existingPayment = await tx.repairPayment.findFirst({
+                where: { ticketId: ticket.id, reference: idempotencyKey }
+            });
+            if (existingPayment) {
+                return { success: true, refundedAmount: existingPayment.amount.toNumber(), message: 'تم تنفيذ الاسترداد مسبقاً بنجاح (Idempotent Rescue)' };
+            }
+        }
+
+        // Active warranty rework check
+        const activeRework = await tx.ticket.findFirst({
+            where: {
+                parentTicketId: ticket.id,
+                status: { notIn: ['CANCELLED', 'DELIVERED', 'PAID_DELIVERED'] }
+            }
+        });
+        if (activeRework) {
+            throw new Error(`لا يمكن إجراء استرداد نقدي: توجد تذكرة ضمان نشطة (#${activeRework.barcode}) قيد المتابعة.`);
+        }
+
+        const repairPriceDec = new Decimal(ticket.repairPrice?.toString() || '0');
+        const totalPartsPrice = ticket.parts.reduce(
+            (sum, p) => sum.plus(new Decimal(p.price?.toString() || '0').times(Number(p.quantity ?? 1))),
+            new Decimal(0)
+        );
+        const trueLaborFee = Decimal.max(0, repairPriceDec.minus(totalPartsPrice));
 
         let totalRefundAmount = new Decimal(0);
         let totalCogsReversal = new Decimal(0);
@@ -4155,9 +4193,8 @@ export const partialRefundTicket = secureAction(async (data: {
         for (const returnItem of items) {
             if (returnItem.itemId.startsWith('SVC-') || returnItem.itemId === 'SERVICE') {
                 // Labor / Service Refund
-                const laborPrice = new Decimal(ticket.repairPrice || 0);
-                if (laborPrice.gt(0)) {
-                    const refundAmt = laborPrice.times(returnItem.quantity);
+                if (trueLaborFee.gt(0)) {
+                    const refundAmt = trueLaborFee.times(returnItem.quantity);
                     totalRefundAmount = totalRefundAmount.plus(refundAmt);
                     laborRefundAmount = laborRefundAmount.plus(refundAmt);
                 }
@@ -4203,124 +4240,139 @@ export const partialRefundTicket = secureAction(async (data: {
             }
         }
 
-        // 3. Create Refund Payment Record
-        let payment: any = null;
-        if (totalRefundAmount.gt(0)) {
-            payment = await tx.repairPayment.create({
-                data: {
-                    ticketId: ticket.id,
-                    type: 'REFUND',
-                    amount: totalRefundAmount,
-                    method: refundMethod === 'STORE_CREDIT' ? 'ACCOUNT' : 'CASH',
-                    reference: `Partial Refund of ${items.length} items`,
-                    recordedBy: currentUser.name || "System"
-                }
-            });
-
-            if (refundMethod === 'STORE_CREDIT' && ticket.customerId) {
-                await tx.customer.update({
-                    where: { id: ticket.customerId },
-                    data: {
-                        balance: { increment: totalRefundAmount }
-                    }
-                });
-            }
-
-            // 4. Recalculate Financial Snapshot — Profit-First Loss Absorption
-            const newRepairPrice = new Decimal(ticket.repairPrice).minus(totalRefundAmount);
-            // Note: partsCost decreases by totalCogsReversal (non-damaged returns)
-            const newPartsCost = new Decimal(ticket.partsCost).minus(totalCogsReversal);
-            const newNetProfit = newRepairPrice.minus(newPartsCost);
-
-            let newCommissionAmount = new Decimal(0);
-            let excessLossAmount = new Decimal(0);
-
-            if (newNetProfit.gt(0)) {
-                newCommissionAmount = newNetProfit.times(new Decimal(ticket.commissionRate || 0)).div(100);
-            } else if (newNetProfit.lt(0)) {
-                excessLossAmount = newNetProfit.abs();
-            }
-
-            // 5. Update Ticket Totals with Financial Integrity
-            await tx.ticket.update({
-                where: { id: ticket.id },
-                data: {
-                    repairPrice: newRepairPrice,
-                    partsCost: newPartsCost,
-                    netProfit: newNetProfit,
-                    commissionAmount: newCommissionAmount,
-                    excessLossAmount: excessLossAmount,
-                    // If loss exists, default to CENTER responsibility if not previously set, 
-                    // or allow manager to override later
-                    lossResponsibility: excessLossAmount.gt(0) && !ticket.lossResponsibility ? 'CENTER' : ticket.lossResponsibility,
-                    amountPaid: { decrement: totalRefundAmount },
-                    paymentStatus: newRepairPrice.gt(0) ? 'partial' : 'unpaid',
-                    lastReturnedAt: new Date(),
-                    returnCount: { increment: 1 }
-                }
-            });
-
-
-            // 5. Shift & Treasury (if Cash)
-            if (refundMethod === 'CASH') {
-                await tx.shift.update({
-                    where: { id: currentShift.id },
-                    data: {
-                        totalRefunds: { increment: totalRefundAmount },
-                        totalCashRefunds: { increment: totalRefundAmount }
-                    }
-                });
-
-                let treasuryId: string | null = null;
-                if (currentUser.branchId) {
-                    const treasury = await tx.treasury.findFirst({
-                        where: { branchId: currentUser.branchId, isDefault: true }
-                    });
-                    treasuryId = treasury?.id || null;
-                }
-
-                if (treasuryId) {
-                    const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
-                    await deductTreasuryBalance({
-                        tx,
-                        treasuryId: treasuryId,
-                        amount: totalRefundAmount,
-                        actionDescription: `مرتجع جزئي لتذكرة #${ticket.barcode}`,
-                        allowOverdraftOverride: canGoNegative ? true : undefined,
-                    });
-                }
-
-                await tx.transaction.create({
-                    data: {
-                        type: 'REFUND',
-                        amount: totalRefundAmount.negated(),
-                        paymentMethod: 'CASH',
-                        description: `Partial Refund Ticket #${ticket.barcode}`,
-                        shiftId: currentShift.id,
-                        treasuryId
-                    }
-                });
-            }
-
-            // 6. Accounting
-            const je = await AccountingEngine.recordRefund({
-                amount: totalRefundAmount.toNumber(),
-                method: refundMethod === 'STORE_CREDIT' ? 'ACCOUNT' : 'CASH',
-                description: `Partial Refund: Ticket #${ticket.barcode}`,
-                reference: ticket.id,
-                ticketId: ticket.id,
-                cogsReversal: totalCogsReversal.toNumber(),
-                spoilageAmount: totalSpoilageAmount.toNumber(),
-                branchId: currentUser.branchId ?? undefined
-            }, tx);
-
-            if (je && payment) {
-                await tx.repairPayment.update({
-                    where: { id: payment.id },
-                    data: { journalEntryId: je.id }
-                });
-            }
+        // HARD CAP GUARD
+        const currentPaid = new Decimal(ticket.amountPaid?.toString() || '0');
+        if (totalRefundAmount.gt(currentPaid)) {
+            throw new Error(`مبلغ الاسترداد (${totalRefundAmount.toFixed(2)}) يتجاوز إجمالي المبلغ المدفوع المتبقي (${currentPaid.toFixed(2)})`);
         }
+        if (totalRefundAmount.lte(0)) {
+            throw new Error('مبلغ الاسترداد يجب أن يكون أكبر من صفر');
+        }
+
+        // 3. Create Refund Payment Record
+        const payment = await tx.repairPayment.create({
+            data: {
+                ticketId: ticket.id,
+                type: 'REFUND',
+                amount: totalRefundAmount,
+                method: refundMethod === 'STORE_CREDIT' ? 'ACCOUNT' : 'CASH',
+                reference: idempotencyKey || `Partial Refund of ${items.length} items`,
+                recordedBy: currentUser.name || "System"
+            }
+        });
+
+        if (refundMethod === 'STORE_CREDIT' && ticket.customerId) {
+            await tx.customer.update({
+                where: { id: ticket.customerId },
+                data: {
+                    balance: { increment: totalRefundAmount }
+                }
+            });
+        }
+
+        // 4. Recalculate Financial Snapshot — Profit-First Loss Absorption
+        const newRepairPrice = Decimal.max(0, new Decimal(ticket.repairPrice).minus(totalRefundAmount));
+        const newPartsCost = Decimal.max(0, new Decimal(ticket.partsCost).minus(totalCogsReversal));
+        const newNetProfit = newRepairPrice.minus(newPartsCost);
+        const newAmountPaid = Decimal.max(0, currentPaid.minus(totalRefundAmount));
+
+        let newCommissionAmount = new Decimal(0);
+        let excessLossAmount = new Decimal(0);
+
+        if (newNetProfit.gt(0)) {
+            newCommissionAmount = newNetProfit.times(new Decimal(ticket.commissionRate || 0)).div(100);
+        } else if (newNetProfit.lt(0)) {
+            excessLossAmount = newNetProfit.abs();
+        }
+
+        // 5. Update Ticket Totals with Financial Integrity
+        await tx.ticket.update({
+            where: { id: ticket.id },
+            data: {
+                repairPrice: newRepairPrice,
+                partsCost: newPartsCost,
+                netProfit: newNetProfit,
+                commissionAmount: newCommissionAmount,
+                excessLossAmount: excessLossAmount,
+                lossResponsibility: excessLossAmount.gt(0) && !ticket.lossResponsibility ? 'CENTER' : ticket.lossResponsibility,
+                amountPaid: newAmountPaid,
+                paymentStatus: newAmountPaid.gt(0) ? 'partial' : 'unpaid',
+                status: newAmountPaid.isZero() ? 'CANCELLED' : ticket.status,
+                lastReturnedAt: new Date(),
+                returnCount: { increment: 1 }
+            }
+        });
+
+        // 6. Shift & Treasury (if Cash)
+        if (refundMethod === 'CASH') {
+            await tx.shift.update({
+                where: { id: currentShift.id },
+                data: {
+                    totalRefunds: { increment: totalRefundAmount },
+                    totalCashRefunds: { increment: totalRefundAmount }
+                }
+            });
+
+            let treasuryId: string | null = null;
+            if (currentUser.branchId) {
+                const treasury = await tx.treasury.findFirst({
+                    where: { branchId: currentUser.branchId, isDefault: true }
+                });
+                treasuryId = treasury?.id || null;
+            }
+
+            if (treasuryId) {
+                const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                await deductTreasuryBalance({
+                    tx,
+                    treasuryId: treasuryId,
+                    amount: totalRefundAmount,
+                    actionDescription: `مرتجع جزئي لتذكرة #${ticket.barcode}`,
+                    allowOverdraftOverride: canGoNegative ? true : undefined,
+                });
+            }
+
+            await tx.transaction.create({
+                data: {
+                    type: 'REFUND',
+                    amount: totalRefundAmount.negated(),
+                    paymentMethod: 'CASH',
+                    description: `Partial Refund Ticket #${ticket.barcode}`,
+                    shiftId: currentShift.id,
+                    treasuryId
+                }
+            });
+        }
+
+        // 7. Accounting
+        const je = await AccountingEngine.recordRefund({
+            amount: totalRefundAmount.toNumber(),
+            method: refundMethod === 'STORE_CREDIT' ? 'ACCOUNT' : 'CASH',
+            description: `Partial Refund: Ticket #${ticket.barcode}`,
+            reference: ticket.id,
+            ticketId: ticket.id,
+            cogsReversal: totalCogsReversal.toNumber(),
+            spoilageAmount: totalSpoilageAmount.toNumber(),
+            branchId: currentUser.branchId ?? undefined
+        }, tx);
+
+        if (je && payment) {
+            await tx.repairPayment.update({
+                where: { id: payment.id },
+                data: { journalEntryId: je.id }
+            });
+        }
+
+        // 8. ActionLog Audit Trail
+        await tx.actionLog.create({
+            data: {
+                tenantId: ticket.tenantId || 'default',
+                action: 'TICKET_PARTIAL_REFUND',
+                details: `Refunded ${totalRefundAmount.toFixed(2)} EGP via ${refundMethod} on ticket #${ticket.barcode} (Items: ${items.length})`,
+                userId: currentUser.id,
+                branchId: currentUser.branchId || ticket.currentBranchId
+            }
+        });
 
         return { success: true, refundedAmount: totalRefundAmount.toNumber() };
     }, { timeout: 90000 });

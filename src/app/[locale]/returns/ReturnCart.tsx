@@ -85,7 +85,7 @@ function SalesReturnCart({
 }) {
   const [cart, setCart] = useState<SaleCartState>(() => {
     const init: SaleCartState = {};
-    data.items.forEach((i: any) => {
+    data.items.forEach((i: SaleLineItem) => {
       init[i.id] = { qty: 0, isDamaged: false };
     });
     return init;
@@ -102,7 +102,7 @@ function SalesReturnCart({
 
   const handleSelectAll = () => {
     const next: SaleCartState = {};
-    data.items.forEach((item: any) => {
+    data.items.forEach((item: SaleLineItem) => {
       const available = item.quantity - item.refundedQty;
       next[item.id] = { qty: Math.max(0, available), isDamaged: false };
     });
@@ -111,7 +111,7 @@ function SalesReturnCart({
 
   const handleClearAll = () => {
     const next: SaleCartState = {};
-    data.items.forEach((item: any) => {
+    data.items.forEach((item: SaleLineItem) => {
       next[item.id] = { qty: 0, isDamaged: false };
     });
     setCart(next);
@@ -124,7 +124,7 @@ function SalesReturnCart({
     }));
 
   const totalRefund = useMemo(() => {
-    return data.items.reduce((sum: number, item: any) => {
+    return data.items.reduce((sum: number, item: SaleLineItem) => {
       const { qty } = cart[item.id] ?? { qty: 0 };
       return new Decimal(sum)
         .plus(new Decimal(item.unitPrice).times(qty))
@@ -159,7 +159,7 @@ function SalesReturnCart({
       });
 
       if (!result?.success) {
-        setError((result as any)?.error ?? "فشل تنفيذ المرتجع");
+        setError(result?.error ?? result?.message ?? "فشل تنفيذ المرتجع");
         return;
       }
 
@@ -202,7 +202,7 @@ function SalesReturnCart({
           cols={["الصنف", "الكمية الأصلية", "المتاح", "السعر", "الكمية المرتجعة", "الحالة"]}
         />
         <tbody>
-          {data.items.map((item: any) => {
+          {data.items.map((item: SaleLineItem) => {
             const available = item.quantity - item.refundedQty;
             const isService = item.itemType === "SERVICE";
             return (
@@ -317,7 +317,7 @@ function PurchaseReturnCart({
 }) {
   const [cart, setCart] = useState<PurchaseCartState>(() => {
     const init: PurchaseCartState = {};
-    data.items.forEach((i: any) => {
+    data.items.forEach((i: PurchaseLineItem) => {
       init[i.id] = { qty: 0 };
     });
     return init;
@@ -333,7 +333,7 @@ function PurchaseReturnCart({
 
   const handleSelectAll = () => {
     const next: PurchaseCartState = {};
-    data.items.forEach((item: any) => {
+    data.items.forEach((item: PurchaseLineItem) => {
       const available = item.quantity - item.returnedQty;
       next[item.id] = { qty: Math.max(0, available) };
     });
@@ -342,14 +342,14 @@ function PurchaseReturnCart({
 
   const handleClearAll = () => {
     const next: PurchaseCartState = {};
-    data.items.forEach((item: any) => {
+    data.items.forEach((item: PurchaseLineItem) => {
       next[item.id] = { qty: 0 };
     });
     setCart(next);
   };
 
   const totalRefund = useMemo(() => {
-    return data.items.reduce((sum: number, item: any) => {
+    return data.items.reduce((sum: number, item: PurchaseLineItem) => {
       const { qty } = cart[item.id] ?? { qty: 0 };
       return new Decimal(sum)
         .plus(new Decimal(item.unitCost).times(qty))
@@ -378,7 +378,7 @@ function PurchaseReturnCart({
           result.message ?? `تم الإرجاع بمبلغ ${totalRefund.toFixed(2)} ج.م`
         );
       } else {
-        setError((result as any)?.error ?? "فشل تنفيذ المرتجع");
+        setError(result?.error ?? result?.message ?? "فشل تنفيذ المرتجع");
       }
     });
   };
@@ -492,7 +492,7 @@ function MaintenanceReturnCart({
 }) {
   const [cart, setCart] = useState<SaleCartState>(() => {
     const init: SaleCartState = {};
-    data.items.forEach((i: any) => {
+    data.items.forEach((i: TicketLineItem) => {
       init[i.id] = { qty: 0, isDamaged: false };
     });
     return init;
@@ -511,7 +511,7 @@ function MaintenanceReturnCart({
 
   const handleSelectAll = () => {
     const next: SaleCartState = {};
-    data.items.forEach((item: any) => {
+    data.items.forEach((item: TicketLineItem) => {
       const available = item.quantity - item.refundedQty;
       next[item.id] = { qty: Math.max(0, available), isDamaged: false };
     });
@@ -520,7 +520,7 @@ function MaintenanceReturnCart({
 
   const handleClearAll = () => {
     const next: SaleCartState = {};
-    data.items.forEach((item: any) => {
+    data.items.forEach((item: TicketLineItem) => {
       next[item.id] = { qty: 0, isDamaged: false };
     });
     setCart(next);
@@ -537,7 +537,7 @@ function MaintenanceReturnCart({
   const { totalRefund, partsTotal, laborTotal } = useMemo(() => {
     let parts = new Decimal(0);
     let labor = new Decimal(0);
-    data.items.forEach((item: any) => {
+    data.items.forEach((item: TicketLineItem) => {
       const { qty } = cart[item.id] ?? { qty: 0 };
       const line = new Decimal(item.unitPrice).times(qty);
       if (item.itemType === "SERVICE") {
@@ -559,6 +559,11 @@ function MaintenanceReturnCart({
 
   const handleFinancialRefund = () => {
     setError(null);
+    if (totalRefund > data.totalAmount) {
+      setError(`المبلغ المحدد للاسترداد (${totalRefund.toFixed(2)} ج.م) يتجاوز إجمالي المبلغ المدفوع المتاح (${data.totalAmount.toFixed(2)} ج.م)`);
+      return;
+    }
+
     const payload = selectedItems.map(([itemId, { qty, isDamaged }]) => ({
       itemId,
       quantity: qty,
@@ -570,16 +575,19 @@ function MaintenanceReturnCart({
       return;
     }
 
+    const idempotencyKey = `REF-${data.id.slice(0, 8)}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
     startTransition(async () => {
       const result = await partialRefundTicket({
         ticketId: data.id,
         items: payload,
         refundMethod: refundMethod === "STORE_CREDIT" ? "STORE_CREDIT" : "CASH",
+        idempotencyKey,
         csrfToken,
       });
 
       if (!result?.success) {
-        setError((result as any)?.error ?? "فشل تنفيذ الاسترداد");
+        setError(result?.error ?? result?.message ?? "فشل تنفيذ الاسترداد");
         return;
       }
 
@@ -660,10 +668,10 @@ function MaintenanceReturnCart({
             const isService = item.itemType === "SERVICE";
             const label =
               item.itemType === "SERVICE"
-                ? (item as any).description
-                : (item as any).partName;
+                ? item.description
+                : item.partName;
             const skuOrId =
-              item.itemType === "PRODUCT" ? (item as any).sku : "—";
+              item.itemType === "PRODUCT" ? item.sku : "—";
 
             return (
               <tr
