@@ -67,6 +67,66 @@ function wrapCallbackRename(originalFn) {
     wrapped[util.promisify.custom] = wrapAsyncRename(fs.promises.rename);
   }
 
+function wrapAsyncCopyFile(originalFn) {
+  if (typeof originalFn !== 'function') return originalFn;
+  return async function (src, dest, flags) {
+    ensureDir(dest);
+    try {
+      return await originalFn.call(this, src, dest, flags);
+    } catch (e) {
+      if (e.code === 'ENOENT' && !fs.existsSync(src)) {
+        console.warn(`[patch-next-build] Ignored ENOENT on missing copy source: ${src}`);
+        ensureDir(dest);
+        try { fs.writeFileSync(dest, '', 'utf8'); } catch (_) {}
+        return;
+      }
+      throw e;
+    }
+  };
+}
+
+function wrapSyncCopyFile(originalFn) {
+  if (typeof originalFn !== 'function') return originalFn;
+  return function (src, dest, flags) {
+    ensureDir(dest);
+    try {
+      return originalFn.call(this, src, dest, flags);
+    } catch (e) {
+      if (e.code === 'ENOENT' && !fs.existsSync(src)) {
+        console.warn(`[patch-next-build] Ignored ENOENT on missing copy source: ${src}`);
+        ensureDir(dest);
+        try { fs.writeFileSync(dest, '', 'utf8'); } catch (_) {}
+        return;
+      }
+      throw e;
+    }
+  };
+}
+
+function wrapCallbackCopyFile(originalFn) {
+  if (typeof originalFn !== 'function') return originalFn;
+  const wrapped = function (src, dest, flagsOrCallback, maybeCallback) {
+    const callback = typeof flagsOrCallback === 'function' ? flagsOrCallback : maybeCallback;
+    const flags = typeof flagsOrCallback === 'number' ? flagsOrCallback : 0;
+    const cb = typeof callback === 'function' ? callback : noop;
+    
+    ensureDir(dest);
+    if (typeof src === 'string' && !fs.existsSync(src)) {
+      console.warn(`[patch-next-build] Ignored ENOENT on missing copy source: ${src}`);
+      ensureDir(dest);
+      try { fs.writeFileSync(dest, '', 'utf8'); } catch (_) {}
+      return cb(null);
+    }
+
+    return originalFn.call(this, src, dest, flags, cb);
+  };
+
+  if (originalFn[util.promisify.custom]) {
+    wrapped[util.promisify.custom] = wrapAsyncCopyFile(originalFn[util.promisify.custom]);
+  } else if (fs.promises && fs.promises.copyFile) {
+    wrapped[util.promisify.custom] = wrapAsyncCopyFile(fs.promises.copyFile);
+  }
+
   return wrapped;
 }
 
@@ -273,6 +333,10 @@ if (fs.rmdir) fs.rmdir = wrapCallbackRmdir(fs.rmdir);
 if (fs.rmdirSync) fs.rmdirSync = wrapSyncRmdir(fs.rmdirSync);
 if (fs.promises && fs.promises.rmdir) fs.promises.rmdir = wrapAsyncRmdir(fs.promises.rmdir);
 
+if (fs.copyFile) fs.copyFile = wrapCallbackCopyFile(fs.copyFile);
+if (fs.copyFileSync) fs.copyFileSync = wrapSyncCopyFile(fs.copyFileSync);
+if (fs.promises && fs.promises.copyFile) fs.promises.copyFile = wrapAsyncCopyFile(fs.promises.copyFile);
+
 // 2. Intercept Module.prototype.require for 'fs/promises' & 'node:fs/promises' & 'fs'
 const Module = require('module');
 const originalRequire = Module.prototype.require;
@@ -293,6 +357,10 @@ Module.prototype.require = function (moduleName) {
       if (mod.rmdir && !mod.__patchedRmdirAsync) {
         mod.rmdir = wrapAsyncRmdir(mod.rmdir);
         mod.__patchedRmdirAsync = true;
+      }
+      if (mod.copyFile && !mod.__patchedCopyFileAsync) {
+        mod.copyFile = wrapAsyncCopyFile(mod.copyFile);
+        mod.__patchedCopyFileAsync = true;
       }
     }
   } else if (moduleName === 'fs' || moduleName === 'node:fs') {
@@ -333,6 +401,18 @@ Module.prototype.require = function (moduleName) {
         mod.promises.rmdir = wrapAsyncRmdir(mod.promises.rmdir);
         mod.promises.__patchedRmdirAsync = true;
       }
+      if (mod.copyFile && !mod.__patchedCopyFileCallback) {
+        mod.copyFile = wrapCallbackCopyFile(mod.copyFile);
+        mod.__patchedCopyFileCallback = true;
+      }
+      if (mod.copyFileSync && !mod.__patchedCopyFileSync) {
+        mod.copyFileSync = wrapSyncCopyFile(mod.copyFileSync);
+        mod.__patchedCopyFileSync = true;
+      }
+      if (mod.promises && mod.promises.copyFile && !mod.promises.__patchedCopyFileAsync) {
+        mod.promises.copyFile = wrapAsyncCopyFile(mod.promises.copyFile);
+        mod.promises.__patchedCopyFileAsync = true;
+      }
     }
   }
   
@@ -356,8 +436,13 @@ Module.prototype.require = function (moduleName) {
         mod.rmdir = wrapAsyncRmdir(mod.rmdir);
         mod.__patchedRmdirAsync = true;
       }
+      if (mod.copyFile && !mod.__patchedCopyFileAsync) {
+        mod.copyFile = wrapAsyncCopyFile(mod.copyFile);
+        mod.__patchedCopyFileAsync = true;
+      }
     }
   } catch (e) {}
 });
 
-console.log('[patch-next-build] Next.js build fs.rename & nft.json & rmdir patch active.');
+console.log('[patch-next-build] Next.js build fs.rename & nft.json & rmdir & copyFile patch active.');
+
