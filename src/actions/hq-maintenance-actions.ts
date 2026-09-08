@@ -6,6 +6,7 @@ import { TicketStatus } from "@/lib/constants";
 import { secureAction } from "@/lib/safe-action";
 import { PERMISSIONS } from "@/lib/permissions";
 import { startOfDay, subHours, endOfDay } from "date-fns";
+import Decimal from "decimal.js";
 
 export interface DashboardFilters {
     branchId?: string | "ALL";
@@ -213,30 +214,34 @@ export const getHQMaintenanceStats = secureAction(async (filters: DashboardFilte
         });
 
         const branchMatrix = branchPerformance.map(branch => {
+            const inactiveStatuses: readonly string[] = [
+                TicketStatus.COMPLETED,
+                TicketStatus.DELIVERED,
+                TicketStatus.PAID_DELIVERED,
+                TicketStatus.REJECTED,
+                TicketStatus.CANCELLED,
+                TicketStatus.PICKED_UP,
+                TicketStatus.VOIDED
+            ];
+
+            const closedStatuses: readonly string[] = [
+                TicketStatus.COMPLETED,
+                TicketStatus.DELIVERED,
+                TicketStatus.PAID_DELIVERED,
+                TicketStatus.PICKED_UP
+            ];
+
             const activeTickets = branch.currentTickets.filter(t =>
-                ![
-                    TicketStatus.COMPLETED,
-                    TicketStatus.DELIVERED,
-                    TicketStatus.PAID_DELIVERED,
-                    TicketStatus.REJECTED,
-                    TicketStatus.CANCELLED,
-                    TicketStatus.PICKED_UP,
-                    TicketStatus.VOIDED
-                ].includes(t.status as any)
+                !inactiveStatuses.includes(t.status)
             ).length;
 
             const closedTickets = branch.currentTickets.filter(t =>
-                [
-                    TicketStatus.COMPLETED,
-                    TicketStatus.DELIVERED,
-                    TicketStatus.PAID_DELIVERED,
-                    TicketStatus.PICKED_UP
-                ].includes(t.status as any)
+                closedStatuses.includes(t.status)
             );
 
-            const totalRevenue = branch.currentTickets.reduce((sum, t) => sum + Number(t.repairPrice), 0);
-            const totalPartsCost = branch.currentTickets.reduce((sum, t) => sum + Number(t.partsCost), 0);
-            const netProfit = totalRevenue - totalPartsCost;
+            const totalRevenueDec = branch.currentTickets.reduce((sum, t) => sum.plus(new Decimal(t.repairPrice?.toString() || 0)), new Decimal(0));
+            const totalPartsCostDec = branch.currentTickets.reduce((sum, t) => sum.plus(new Decimal(t.partsCost?.toString() || 0)), new Decimal(0));
+            const netProfitDec = totalRevenueDec.minus(totalPartsCostDec);
 
             let totalRepairTime = 0;
             let repairTimeCount = 0;
@@ -254,9 +259,9 @@ export const getHQMaintenanceStats = secureAction(async (filters: DashboardFilte
                 branchName: branch.name,
                 activeTickets,
                 avgRepairTime: avgRepairTime.toFixed(1),
-                sparePartsCost: totalPartsCost,
-                serviceRevenue: totalRevenue,
-                netProfit: netProfit
+                sparePartsCost: totalPartsCostDec.toNumber(),
+                serviceRevenue: totalRevenueDec.toNumber(),
+                netProfit: netProfitDec.toNumber()
             };
         });
 
@@ -290,7 +295,7 @@ export const getHQMaintenanceStats = secureAction(async (filters: DashboardFilte
 
         const leaderboard = techStats.map(tech => {
             const ticketsClosed = tech.completedTickets.length;
-            const revenueGenerated = tech.completedTickets.reduce((sum, t) => sum + Number(t.repairPrice), 0);
+            const revenueGeneratedDec = tech.completedTickets.reduce((sum, t) => sum.plus(new Decimal(t.repairPrice?.toString() || 0)), new Decimal(0));
             const returnedTicketsCount = tech.completedTickets.filter(t => t.returnCount > 0).length;
             const bounceRate = ticketsClosed > 0 ? (returnedTicketsCount / ticketsClosed) * 100 : 0;
 
@@ -298,7 +303,7 @@ export const getHQMaintenanceStats = secureAction(async (filters: DashboardFilte
                 id: tech.id,
                 name: tech.name,
                 ticketsClosed,
-                revenueGenerated,
+                revenueGenerated: revenueGeneratedDec.toNumber(),
                 bounceRate: bounceRate.toFixed(1)
             };
         }).sort((a, b) => b.revenueGenerated - a.revenueGenerated);
@@ -324,7 +329,7 @@ export const getHQMaintenanceStats = secureAction(async (filters: DashboardFilte
             leaderboard
         };
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Error fetching HQ maintenance stats:", error);
         throw new Error("Failed to fetch dashboard data");
     }
