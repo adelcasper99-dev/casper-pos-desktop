@@ -66,23 +66,23 @@ export function ProvisionTenantModal() {
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" dir="rtl">
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center">
-              <h3 className="text-xl font-black">إضافة عميل جديد (Tenant)</h3>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overscroll-contain" dir="rtl">
+          <div className="bg-white dark:bg-zinc-900 rounded-3xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[85vh] max-h-[85dvh]">
+            <div className="p-4 sm:p-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center shrink-0">
+              <h3 className="text-lg sm:text-xl font-black">إضافة عميل جديد (Tenant)</h3>
               <button 
                 onClick={() => setIsOpen(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-white font-bold"
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-white font-bold"
               >
                 ✕
               </button>
             </div>
             
-            <div className="p-6">
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1">
               {activationCode ? (
                 <div className="space-y-4">
                   <div className="bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 p-4 rounded-xl space-y-4">
-                    <p className="font-bold">تم إنشاء العميل وتوليد الترخيص بنجاح! 🎉</p>
+                    <p className="font-bold text-sm">تم إنشاء العميل وتوليد الترخيص بنجاح! 🎉</p>
                     
                     <div>
                       <label className="block text-xs font-bold mb-1 text-slate-600 dark:text-zinc-400">🔑 كود التفعيل (لتطبيق الـ Desktop):</label>
@@ -95,9 +95,18 @@ export function ProvisionTenantModal() {
                         <button 
                           type="button"
                           onClick={() => {
-                            navigator.clipboard.writeText(activationCode);
+                            if (navigator.clipboard && navigator.clipboard.writeText) {
+                              navigator.clipboard.writeText(activationCode);
+                            } else {
+                              const el = document.createElement("textarea");
+                              el.value = activationCode;
+                              document.body.appendChild(el);
+                              el.select();
+                              document.execCommand("copy");
+                              document.body.removeChild(el);
+                            }
                           }}
-                          className="bg-green-600 text-white px-3 py-2 rounded-lg font-bold text-xs hover:bg-green-700 transition-colors"
+                          className="bg-green-600 text-white px-3 py-2 rounded-lg font-bold text-xs hover:bg-green-700 transition-colors min-h-[38px]"
                         >
                           نسخ الكود
                         </button>
@@ -115,9 +124,19 @@ export function ProvisionTenantModal() {
                         <button 
                           type="button"
                           onClick={() => {
-                            navigator.clipboard.writeText(getLoginUrl());
+                            const url = getLoginUrl();
+                            if (navigator.clipboard && navigator.clipboard.writeText) {
+                              navigator.clipboard.writeText(url);
+                            } else {
+                              const el = document.createElement("textarea");
+                              el.value = url;
+                              document.body.appendChild(el);
+                              el.select();
+                              document.execCommand("copy");
+                              document.body.removeChild(el);
+                            }
                           }}
-                          className="bg-blue-600 text-white px-3 py-2 rounded-lg font-bold text-xs hover:bg-blue-700 transition-colors"
+                          className="bg-blue-600 text-white px-3 py-2 rounded-lg font-bold text-xs hover:bg-blue-700 transition-colors min-h-[38px]"
                         >
                           نسخ الرابط
                         </button>
@@ -131,7 +150,7 @@ export function ProvisionTenantModal() {
                       setActivationCode("");
                       setCreatedDomain("");
                     }}
-                    className="w-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 font-bold py-3 rounded-xl transition-colors text-slate-900 dark:text-white"
+                    className="w-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 font-bold py-3 rounded-xl transition-colors text-slate-900 dark:text-white min-h-[44px]"
                   >
                     تم
                   </button>

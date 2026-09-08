@@ -76,7 +76,17 @@ export function MobileLicenseModal({ isOpen, onClose }: MobileLicenseModalProps)
   };
 
   const handleCopy = (keyToCopy: string) => {
-    navigator.clipboard.writeText(keyToCopy);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(keyToCopy);
+    } else {
+      // ponytail: legacy execCommand clipboard fallback for older WebViews
+      const el = document.createElement("textarea");
+      el.value = keyToCopy;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+    }
     setCopied(true);
     toast.success("تم نسخ الكود للحافظة");
     setTimeout(() => setCopied(false), 2000);
@@ -84,18 +94,18 @@ export function MobileLicenseModal({ isOpen, onClose }: MobileLicenseModalProps)
 
   return (
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4 overscroll-contain"
       dir="rtl"
     >
-      <div className="bg-white dark:bg-zinc-950 border border-slate-200 dark:border-white/10 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white dark:bg-zinc-950 border border-slate-200 dark:border-white/10 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[85vh] max-h-[85dvh]">
         {/* Header */}
-        <div className="p-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center bg-gradient-to-r from-blue-600/10 via-cyan-500/10 to-transparent">
+        <div className="p-4 sm:p-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center bg-gradient-to-r from-blue-600/10 via-cyan-500/10 to-transparent shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-blue-600/20 text-blue-500 flex items-center justify-center ring-1 ring-blue-500/30">
               <Smartphone className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg font-black text-slate-900 dark:text-white">
+              <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
                 توليد كود تفعيل الموبايل (Mobile POS)
               </h3>
               <p className="text-xs text-slate-500 dark:text-zinc-400 font-bold">
@@ -105,14 +115,14 @@ export function MobileLicenseModal({ isOpen, onClose }: MobileLicenseModalProps)
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
+            className="w-9 h-9 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors min-h-[36px] min-w-[36px]"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Form Content */}
-        <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+        <div className="p-4 sm:p-6 space-y-5 overflow-y-auto flex-1">
           <form onSubmit={handleGenerate} className="space-y-4">
             {/* Device ID */}
             <div>

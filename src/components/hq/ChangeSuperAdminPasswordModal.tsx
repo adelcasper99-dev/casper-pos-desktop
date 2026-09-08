@@ -79,30 +79,30 @@ export function ChangeSuperAdminPasswordModal() {
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200" dir="rtl">
-          <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 text-slate-900 dark:text-white">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overscroll-contain animate-in fade-in duration-200" dir="rtl">
+          <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/10 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 text-slate-900 dark:text-white max-h-[85vh] max-h-[85dvh] flex flex-col">
             
             {/* Modal Header */}
-            <div className="p-5 border-b border-slate-100 dark:border-white/10 flex justify-between items-center bg-slate-50/50 dark:bg-zinc-800/50">
+            <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-white/10 flex justify-between items-center bg-slate-50/50 dark:bg-zinc-800/50 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400">
                   <KeyRound className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-black">تغيير كلمة مرور المشرف العام</h3>
-                  <p className="text-xs text-slate-500 dark:text-zinc-400">Casper HQ Master Credentials</p>
+                  <h3 className="text-sm sm:text-base font-black">تغيير كلمة مرور المشرف العام</h3>
+                  <p className="text-[11px] text-slate-500 dark:text-zinc-400">Casper HQ Master Credentials</p>
                 </div>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-white font-bold p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors"
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-white font-bold"
               >
                 ✕
               </button>
             </div>
 
             {/* Modal Body Form */}
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
               {error && (
                 <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 rounded-xl text-xs font-bold flex items-center gap-2">
                   <ShieldAlert className="w-4 h-4 shrink-0" />

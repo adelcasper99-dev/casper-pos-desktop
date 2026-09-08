@@ -73,11 +73,11 @@ export function SalesPipelineTab({ metrics, onSelectFilter }: SalesPipelineTabPr
   return (
     <div className="space-y-6" dir="rtl">
       {/* Overview Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         {/* Total Customers */}
         <div 
           onClick={() => onSelectFilter("all")}
-          className="bg-white dark:bg-zinc-900/90 p-5 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm hover:border-blue-500/50 transition-all cursor-pointer group"
+          className="bg-white dark:bg-zinc-900/90 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm hover:border-blue-500/50 transition-all cursor-pointer group min-h-[44px]"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 dark:text-zinc-400">إجمالي العملاء</span>
@@ -86,9 +86,9 @@ export function SalesPipelineTab({ metrics, onSelectFilter }: SalesPipelineTabPr
             </div>
           </div>
           <div className="mt-3 flex items-baseline justify-between">
-            <span className="text-3xl font-black text-slate-900 dark:text-white">{metrics.total}</span>
+            <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">{metrics.total}</span>
             <span className="text-[10px] text-blue-500 font-bold group-hover:underline flex items-center gap-0.5">
-              عرض الكل <ArrowRight className="w-3 h-3 rotate-180" />
+              عرض الكل <ArrowRight className="w-3 h-3 rtl:rotate-180" />
             </span>
           </div>
         </div>
@@ -96,7 +96,7 @@ export function SalesPipelineTab({ metrics, onSelectFilter }: SalesPipelineTabPr
         {/* Active Subscribers */}
         <div 
           onClick={() => onSelectFilter("active")}
-          className="bg-white dark:bg-zinc-900/90 p-5 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm hover:border-emerald-500/50 transition-all cursor-pointer group"
+          className="bg-white dark:bg-zinc-900/90 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm hover:border-emerald-500/50 transition-all cursor-pointer group min-h-[44px]"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 dark:text-zinc-400">نشط ومدفوع</span>
@@ -105,7 +105,7 @@ export function SalesPipelineTab({ metrics, onSelectFilter }: SalesPipelineTabPr
             </div>
           </div>
           <div className="mt-3 flex items-baseline justify-between">
-            <span className="text-3xl font-black text-emerald-600 dark:text-emerald-400">{metrics.active}</span>
+            <span className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400">{metrics.active}</span>
             <span className="text-[11px] font-bold text-slate-400">
               {metrics.total > 0 ? Math.round((metrics.active / metrics.total) * 100) : 0}% من الإجمالي
             </span>
@@ -115,7 +115,7 @@ export function SalesPipelineTab({ metrics, onSelectFilter }: SalesPipelineTabPr
         {/* Trials */}
         <div 
           onClick={() => onSelectFilter("trial")}
-          className="bg-white dark:bg-zinc-900/90 p-5 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm hover:border-cyan-500/50 transition-all cursor-pointer group"
+          className="bg-white dark:bg-zinc-900/90 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm hover:border-cyan-500/50 transition-all cursor-pointer group min-h-[44px]"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 dark:text-zinc-400">تجريبي (Trials)</span>
@@ -124,7 +124,7 @@ export function SalesPipelineTab({ metrics, onSelectFilter }: SalesPipelineTabPr
             </div>
           </div>
           <div className="mt-3 flex items-baseline justify-between">
-            <span className="text-3xl font-black text-cyan-600 dark:text-cyan-400">{metrics.trial}</span>
+            <span className="text-2xl sm:text-3xl font-black text-cyan-600 dark:text-cyan-400">{metrics.trial}</span>
             <span className="text-[11px] font-bold text-slate-400">فرص تحويل</span>
           </div>
         </div>
@@ -132,7 +132,7 @@ export function SalesPipelineTab({ metrics, onSelectFilter }: SalesPipelineTabPr
         {/* Expiring Soon */}
         <div 
           onClick={() => onSelectFilter("expiring")}
-          className="bg-white dark:bg-zinc-900/90 p-5 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm hover:border-amber-500/50 transition-all cursor-pointer group"
+          className="bg-white dark:bg-zinc-900/90 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm hover:border-amber-500/50 transition-all cursor-pointer group min-h-[44px]"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 dark:text-zinc-400">تجديد قريب (&lt; 7d)</span>
@@ -141,7 +141,7 @@ export function SalesPipelineTab({ metrics, onSelectFilter }: SalesPipelineTabPr
             </div>
           </div>
           <div className="mt-3 flex items-baseline justify-between">
-            <span className="text-3xl font-black text-amber-600 dark:text-amber-400">{metrics.expiringSoon}</span>
+            <span className="text-2xl sm:text-3xl font-black text-amber-600 dark:text-amber-400">{metrics.expiringSoon}</span>
             <span className="text-[11px] font-bold text-amber-500">متابعة المبيعات</span>
           </div>
         </div>
@@ -149,7 +149,7 @@ export function SalesPipelineTab({ metrics, onSelectFilter }: SalesPipelineTabPr
         {/* Expired / Suspended */}
         <div 
           onClick={() => onSelectFilter("expired")}
-          className="bg-white dark:bg-zinc-900/90 p-5 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm hover:border-rose-500/50 transition-all cursor-pointer group"
+          className="bg-white dark:bg-zinc-900/90 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm hover:border-rose-500/50 transition-all cursor-pointer group min-h-[44px]"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 dark:text-zinc-400">معطل / منتهي</span>
@@ -158,17 +158,17 @@ export function SalesPipelineTab({ metrics, onSelectFilter }: SalesPipelineTabPr
             </div>
           </div>
           <div className="mt-3 flex items-baseline justify-between">
-            <span className="text-3xl font-black text-rose-600 dark:text-rose-400">{metrics.expiredOrSuspended}</span>
+            <span className="text-2xl sm:text-3xl font-black text-rose-600 dark:text-rose-400">{metrics.expiredOrSuspended}</span>
             <span className="text-[11px] font-bold text-slate-400">متوقف</span>
           </div>
         </div>
       </div>
 
       {/* Sales Pipeline Stages Visual */}
-      <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm space-y-4">
+      <div className="bg-white dark:bg-zinc-900 p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/5 pb-4">
           <div>
-            <h3 className="text-lg font-black flex items-center gap-2">
+            <h3 className="text-base sm:text-lg font-black flex items-center gap-2 text-slate-900 dark:text-white">
               <TrendingUp className="w-5 h-5 text-blue-500" />
               أنبوب حركة العملاء والاختراق (Sales Pipeline Stages)
             </h3>
@@ -178,7 +178,7 @@ export function SalesPipelineTab({ metrics, onSelectFilter }: SalesPipelineTabPr
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {stages.map((stage) => {
             const Icon = stage.icon;
             const percentage = metrics.total > 0 ? Math.round((stage.count / metrics.total) * 100) : 0;
@@ -187,7 +187,7 @@ export function SalesPipelineTab({ metrics, onSelectFilter }: SalesPipelineTabPr
               <div 
                 key={stage.id}
                 onClick={() => onSelectFilter(stage.filterKey)}
-                className={`bg-gradient-to-br ${stage.color} p-5 rounded-2xl border shadow-sm cursor-pointer transition-all hover:scale-[1.02] flex flex-col justify-between space-y-4`}
+                className={`bg-gradient-to-br ${stage.color} p-4 sm:p-5 rounded-2xl border shadow-sm cursor-pointer transition-all hover:scale-[1.02] flex flex-col justify-between space-y-4`}
               >
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -196,14 +196,14 @@ export function SalesPipelineTab({ metrics, onSelectFilter }: SalesPipelineTabPr
                     </span>
                     <Icon className="w-5 h-5 opacity-80" />
                   </div>
-                  <h4 className="font-black text-base text-slate-900 dark:text-white">{stage.title}</h4>
+                  <h4 className="font-black text-sm sm:text-base text-slate-900 dark:text-white">{stage.title}</h4>
                   <p className="text-xs opacity-75">{stage.subtitle}</p>
                 </div>
 
                 <div className="pt-2 border-t border-slate-200/20 dark:border-white/10 flex items-center justify-between">
-                  <span className="text-2xl font-black">{stage.count} عميل</span>
+                  <span className="text-xl sm:text-2xl font-black">{stage.count} عميل</span>
                   <span className="text-xs font-bold underline flex items-center gap-1">
-                    إدارة <ArrowRight className="w-3 h-3 rotate-180" />
+                    إدارة <ArrowRight className="w-3 h-3 rtl:rotate-180" />
                   </span>
                 </div>
               </div>

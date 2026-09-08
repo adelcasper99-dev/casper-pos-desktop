@@ -92,19 +92,19 @@ export function EditTenantModal({
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" dir="rtl">
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200 text-slate-900 dark:text-white max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center sticky top-0 bg-white dark:bg-zinc-900 z-10">
-              <h3 className="text-xl font-black">تعديل بيانات العميل</h3>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overscroll-contain" dir="rtl">
+          <div className="bg-white dark:bg-zinc-900 rounded-3xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200 text-slate-900 dark:text-white max-h-[85vh] max-h-[85dvh] flex flex-col">
+            <div className="p-4 sm:p-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center sticky top-0 bg-white dark:bg-zinc-900 z-10 shrink-0">
+              <h3 className="text-lg sm:text-xl font-black">تعديل بيانات العميل</h3>
               <button 
                 onClick={() => setIsOpen(false)} 
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-white font-bold"
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-white font-bold"
               >
                 ✕
               </button>
             </div>
 
-            <div className="p-6">
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1">
               <form onSubmit={handleSubmit} className="space-y-4">
                 {error && (
                   <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-400 p-3 rounded-lg text-sm font-bold">

@@ -1,64 +1,39 @@
-# Walkthrough: ترقية واجهة إدارة المخزون بنمط Taste-Tier المدمج (Single-Viewport)
+# 🚀 Walkthrough: Casper HQ Mobile-First Redesign & Resilience
 
-تم بنجاح استكمال تنفيذ وضغط واجهات **إدارة المخزون (`/inventory`)** بالكامل، وتحديداً مكونات [page.tsx](file:///f:/casper%20desktop/casper-pos-desktop/src/app/(routes)/inventory/page.tsx) و [ClientHelper.tsx](file:///f:/casper%20desktop/casper-pos-desktop/src/app/(routes)/inventory/ClientHelper.tsx) و [ProductsTab.tsx](file:///f:/casper%20desktop/casper-pos-desktop/src/components/inventory/ProductsTab.tsx) لتلتزم بنمط الـ **Taste-Tier Single Viewport** المعتمد في شاشات التذاكر والحضور اليومي، لتحويل الجدول من عرض 3 منتجات فقط إلى عرض **12-16 منتجاً** في نفس الشاشة دون سكرول خارجي.
+## Summary of Completed Work
+We successfully resolved the mobile rendering and loading breakdown on the Casper HQ Control Plane (`/casper-hq`):
 
----
+1. **Zero-CLS Streaming Skeleton ([loading.tsx](file:///F:/casper%20desktop/casper-pos-desktop/src/app/(admin)/casper-hq/loading.tsx)):**
+   - Added Next.js 16 App Router streaming skeleton that mimics the exact geometry of the header, 5 KPI cards, tab pills, search bar, and tenant cards.
+   - Eliminates white frozen screens on slow cellular mobile networks.
 
-## 📸 التعديلات والإنجازات المكتملة
+2. **Classified Error Boundary ([error.tsx](file:///F:/casper%20desktop/casper-pos-desktop/src/app/(admin)/casper-hq/error.tsx)):**
+   - Categorizes auth/session expiry (401 &rarr; redirect to login) vs. server database errors (500 &rarr; retry & copyable error digest) vs. offline network states.
 
-### 1. ترويسة الصفحة وحاويتها الخارجية ([page.tsx](file:///f:/casper%20desktop/casper-pos-desktop/src/app/(routes)/inventory/page.tsx))
-* تقليص الحاوية الخارجية من تباعد ضخم `space-y-6 max-w-[2400px]` إلى حاوية رشيقة `space-y-2.5 max-w-[1920px] mx-auto p-3 md:p-4`.
-* استبدال عنوان الصفحة الكبير `text-3xl` بترويسة شريطية مدمجة `h-9` مع أيقونة مصغرة `w-4 h-4` وعنوان أنيق `text-base sm:text-lg font-black`.
+3. **Dual Desktop Table / Mobile Card Architecture ([TenantsManagementTab.tsx](file:///F:/casper%20desktop/casper-pos-desktop/src/components/hq/TenantsManagementTab.tsx)):**
+   - Eliminated >800px table horizontal blowout on mobile.
+   - On Desktop (`hidden md:block`): Spacious table with `overflow-x-auto`.
+   - On Mobile (`block md:hidden`): High-contrast touch cards with one-tap copy, expiration countdowns, and instant action toolbar.
+   - Client-side pagination (20 items/batch) with "Show More" buffer for smooth scrolling.
 
-### 2. شريط التبويبات المزدوج ([ClientHelper.tsx](file:///f:/casper%20desktop/casper-pos-desktop/src/app/(routes)/inventory/ClientHelper.tsx))
-* **الشريط الرئيسي:** تحويل تبويبات (المخزون، المواقع، Reorder Rules، Stock Requests) إلى شريط `h-8` مدمج بأزرار `h-8 px-3 rounded-lg text-xs font-bold`.
-* **الشريط الفرعي:** تحويل تبويبات (المنتجات، النواقص، الفئات) إلى شريط `h-7` مدمج بأزرار `h-7 px-3 text-xs` وبادج النواقص `h-5 px-1.5 text-[10px]`.
-* إزالة قيد الارتفاع المتصلب `min-h-[500px]` لإتاحة السيطرة لارتفاع الـ Viewport الفعلي.
+4. **Touch Ergonomics & Directional RTL Mirroring:**
+   - Wrapped action buttons in [LicenseQuickActions.tsx](file:///F:/casper%20desktop/casper-pos-desktop/src/components/hq/LicenseQuickActions.tsx) with minimum touch targets and fallback clipboard copying.
+   - Mirrored directional arrows (`rtl:rotate-180`) in [SalesPipelineTab.tsx](file:///F:/casper%20desktop/casper-pos-desktop/src/components/hq/SalesPipelineTab.tsx) and across all badges.
 
-### 3. شريط البحث والفلاتر ([ProductsTab.tsx](file:///f:/casper%20desktop/casper-pos-desktop/src/components/inventory/ProductsTab.tsx))
-* **حقل البحث وأزرار الإجراءات:**
-  * تقليص حقل البحث إلى `h-8 ps-9 pe-8 text-xs`.
-  * تقليص أزرار "تحميل النموذج"، "إضافة منتج"، و"طباعة الباركود" إلى `h-8 px-3 text-xs font-bold`.
-* **شريط الفلاتر المتقدمة:**
-  * توحيد أزرار القوائم المنسدلة (المستودع، الفئة، الحالة، الترتيب) إلى مقاس `h-7.5 px-2.5 text-xs font-bold rounded-lg`.
-  * تحويل أزرار فلاتر التاريخ السريعة إلى أزرار مصغرة `h-7 px-2 text-[10px]`.
-
-### 4. جدول الأصناف فائق الكثافة (Single-Viewport High-Density Grid)
-* **احتواء الشاشة (Single-Viewport Containment):**
-  * إضافة حاوية سكرول داخلية `max-h-[calc(100vh-270px)] overflow-y-auto overflow-x-auto custom-scrollbar`.
-  * تثبيت رأس الجدول `sticky top-0 z-20 bg-zinc-100/95 dark:bg-zinc-900/95 backdrop-blur-xs` لحماية رؤوس الأعمدة أثناء التمرير الداخلي.
-  * فرض حد أدنى لعرض الجدول `min-w-[950px]` لضمان عدم انضغاط أو التفاف أعمدة الأسعار والتكلفة الأربعة.
-* **أسطر الأصناف:**
-  * تقليص حشو الخلايا من `px-6 py-4` (ارتفاع السطر >85px) إلى `px-3 py-1.5 whitespace-nowrap text-xs` (ارتفاع السطر ~32px).
-  * كود الصنف (SKU): `font-mono text-xs font-bold text-cyan-600 dark:text-cyan-400`.
-  * اسم الصنف: `text-xs font-bold truncate max-w-[200px]`.
-  * كمية المخزون: استبدال الخط الضخم `text-2xl` بخط رشيق عالي الوضوح `font-mono font-black text-xs tabular-nums` مع تلوين فوري بالأحمر للنواقص `p.stock < p.minStock`.
-  * الأسعار والتكلفة: `font-mono font-bold text-xs tabular-nums whitespace-nowrap`.
-  * أزرار الإجراءات السريعة: أزرار مصغرة `w-6 h-6 rounded-md p-1` تظهر بسلاسة عند الـ hover.
-* **شريط الترقيم (Pagination Controls):**
-  * تخفيض شريط الترقيم إلى شريط مدمج `p-1.5 px-3` مع أزرار تنقل رشيقة `p-1.5 rounded-lg w-7 h-7`.
+5. **Modal Viewport Hardening:**
+   - Updated [MobileLicenseModal.tsx](file:///F:/casper%20desktop/casper-pos-desktop/src/components/hq/MobileLicenseModal.tsx), [ProvisionTenantModal.tsx](file:///F:/casper%20desktop/casper-pos-desktop/src/components/hq/ProvisionTenantModal.tsx), [EditTenantModal.tsx](file:///F:/casper%20desktop/casper-pos-desktop/src/components/hq/EditTenantModal.tsx), and [ChangeSuperAdminPasswordModal.tsx](file:///F:/casper%20desktop/casper-pos-desktop/src/components/hq/ChangeSuperAdminPasswordModal.tsx) with dual `max-h-[85vh] max-h-[85dvh]` scroll containment so mobile virtual keyboards do not cut off submit buttons.
 
 ---
 
-## 📊 جدول مقارنة الملفات المعدلة
-
-| الملف المعدل | التعديلات الجوهرية |
-|---|---|
-| [page.tsx](file:///f:/casper%20desktop/casper-pos-desktop/src/app/(routes)/inventory/page.tsx) | تقليص الحاوية الخارجية إلى `p-3 md:p-4 space-y-2.5` وترويسة شريطية `h-9` |
-| [ClientHelper.tsx](file:///f:/casper%20desktop/casper-pos-desktop/src/app/(routes)/inventory/ClientHelper.tsx) | شريط تبويبات رئيسي `h-8`، فرعي `h-7`، وإلغاء `min-h-[500px]` |
-| [ProductsTab.tsx](file:///f:/casper%20desktop/casper-pos-desktop/src/components/inventory/ProductsTab.tsx) | بحث وأزرار `h-8`، فلاتر `h-7.5`، جدول داخلي `max-h-[calc(100vh-270px)]` بسطور `32px` وترقيم مدمج |
-
----
-
-## 🧪 نتائج التحقق والاختبار (Verification Results)
-
-1. **فحص الأنواع البرمجية (TypeScript Strict Check):**
-   ```bash
-   npx tsc --noEmit
-   # Result: PASS (Exit code 0, 0 type errors)
-   ```
-2. **سيرفر التطوير المباشر (Next.js Runtime):**
-   - السيرفر يعمل بنجاح على المنفذ `3001` (PID: 20616).
-   - استجابة صفحة `/inventory` طبيعية ومحمية ببوابة تسجيل الدخول (HTTP 307 Auth Redirect).
-3. **فحص كود المراجعة والأمان (DIFF_SCORE):**
-   - معدل التدقيق: `98%` (اجتياز كامل لمعايير النمط المضغوط ودقة الأسعار والـ CSRF).
+## Artifacts Generated & Updated
+- [loading.tsx](file:///F:/casper%20desktop/casper-pos-desktop/src/app/(admin)/casper-hq/loading.tsx) [NEW]
+- [error.tsx](file:///F:/casper%20desktop/casper-pos-desktop/src/app/(admin)/casper-hq/error.tsx) [NEW]
+- [layout.tsx](file:///F:/casper%20desktop/casper-pos-desktop/src/app/(admin)/casper-hq/layout.tsx) [MODIFIED]
+- [HQDashboardClient.tsx](file:///F:/casper%20desktop/casper-pos-desktop/src/components/hq/HQDashboardClient.tsx) [MODIFIED]
+- [TenantsManagementTab.tsx](file:///F:/casper%20desktop/casper-pos-desktop/src/components/hq/TenantsManagementTab.tsx) [MODIFIED]
+- [LicenseQuickActions.tsx](file:///F:/casper%20desktop/casper-pos-desktop/src/components/hq/LicenseQuickActions.tsx) [MODIFIED]
+- [SalesPipelineTab.tsx](file:///F:/casper%20desktop/casper-pos-desktop/src/components/hq/SalesPipelineTab.tsx) [MODIFIED]
+- [MobileLicenseModal.tsx](file:///F:/casper%20desktop/casper-pos-desktop/src/components/hq/MobileLicenseModal.tsx) [MODIFIED]
+- [ProvisionTenantModal.tsx](file:///F:/casper%20desktop/casper-pos-desktop/src/components/hq/ProvisionTenantModal.tsx) [MODIFIED]
+- [EditTenantModal.tsx](file:///F:/casper%20desktop/casper-pos-desktop/src/components/hq/EditTenantModal.tsx) [MODIFIED]
+- [ChangeSuperAdminPasswordModal.tsx](file:///F:/casper%20desktop/casper-pos-desktop/src/components/hq/ChangeSuperAdminPasswordModal.tsx) [MODIFIED]
