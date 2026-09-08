@@ -18,7 +18,7 @@ import SyncManagement from "@/components/settings/SyncManagement";
 import SuperAdminSecurity from "@/components/settings/SuperAdminSecurity";
 import CloudSettings from "@/components/settings/CloudSettings";
 import NetworkInfoCard from "@/components/settings/NetworkInfoCard";
-import LicenseManagement from "@/components/settings/LicenseManagement";
+import TenantLicenseInfo from "@/components/settings/TenantLicenseInfo";
 import TrainingGuideTab from "@/components/settings/TrainingGuideTab";
 import { ShieldCheck, GraduationCap } from "lucide-react";
 import { getStoreSettings } from "@/actions/settings";
@@ -451,7 +451,7 @@ export default async function SettingsPage() {
                                 </div>
                             </TabsContent>
                             <TabsContent value="licenses" className="mt-0 outline-none focus-visible:ring-0">
-                                <LicenseManagement />
+                                <TenantLicenseInfo />
                             </TabsContent>
                         </>
                     )}

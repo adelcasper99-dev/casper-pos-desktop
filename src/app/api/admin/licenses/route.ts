@@ -1,15 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { requirePlatformHqAdmin } from "@/lib/hq-auth-guard";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
     try {
-        const session = await getSession();
-        if (!session || !session.user || (session.user.role !== 'ADMIN' && session.user.role !== 'مدير النظام' && session.user.role !== 'المالك')) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
+        const { errorResponse } = await requirePlatformHqAdmin(req);
+        if (errorResponse) return errorResponse;
 
         const tenants = await prisma.tenant.findMany({
             include: { licenses: true },
@@ -18,8 +16,9 @@ export async function GET(req: Request) {
 
         return NextResponse.json({ success: true, data: tenants });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("[ADMIN_LICENSES_GET] Error:", error);
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }
+

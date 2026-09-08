@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { requirePlatformHqAdmin } from "@/lib/hq-auth-guard";
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
     try {
-        const session = await getSession();
-        if (!session || !session.user || (session.user.role !== 'ADMIN' && session.user.role !== 'مدير النظام' && session.user.role !== 'المالك')) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
+        const { session, errorResponse } = await requirePlatformHqAdmin(req);
+        if (errorResponse) return errorResponse;
 
         const tenantId = params.id;
         
@@ -24,10 +24,23 @@ export async function POST(req: Request, { params }: { params: { id: string } })
             }
         });
 
+        // Audit log in ActionLog
+        try {
+            await (prisma as unknown as { actionLog?: { create: (arg: unknown) => Promise<unknown> } }).actionLog?.create({
+                data: {
+                    tenantId: 'casper-hq',
+                    action: 'HQ_LICENSE_REVOKED',
+                    details: `Tenant license revoked for tenantId=${tenantId} (${tenant.name}) by HQ User: ${session.user.id}`,
+                    userId: session.user.id
+                }
+            });
+        } catch (e) {}
+
         return NextResponse.json({ success: true, message: "License revoked successfully." });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("[ADMIN_LICENSE_REVOKE] Error:", error);
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }
+

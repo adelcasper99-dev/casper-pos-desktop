@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { requirePlatformHqAdmin } from "@/lib/hq-auth-guard";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: Request) {
     try {
-        const session = await getSession();
-        if (!session || !session.user || (session.user.role !== 'ADMIN' && session.user.role !== 'مدير النظام' && session.user.role !== 'المالك')) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
+        const { session, errorResponse } = await requirePlatformHqAdmin(req);
+        if (errorResponse) return errorResponse;
 
         const body = await req.json();
         const { challenge, machineId } = body;
@@ -54,8 +54,9 @@ export async function POST(req: Request) {
             exp
         });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("[ADMIN_STAFF_GENERATE] Error:", error);
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }
+

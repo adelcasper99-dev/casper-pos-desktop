@@ -60,10 +60,10 @@ export function middleware(request: NextRequest) {
     const sessionToken = request.cookies.get('session')?.value;
     const terminalSetupRoutes = ['/onboarding', '/setup', '/network-setup'];
 
-    // 1. Block regular tenants from accessing HQ control plane
-    if (!isHqDomain && path.startsWith('/casper-hq')) {
+    // 1. Block regular tenants from accessing HQ control plane or HQ admin APIs
+    if (!isHqDomain && (path.startsWith('/casper-hq') || path.startsWith('/api/admin') || path.startsWith('/admin'))) {
         return new NextResponse(
-            JSON.stringify({ error: '403 Forbidden', message: 'غير مصرح لك بالدخول إلى هذه الصفحة.' }),
+            JSON.stringify({ error: '403 Forbidden', message: 'غير مصرح لك بالوصول إلى مسارات إدارة المنصة المركزية.' }),
             { status: 403, headers: { 'content-type': 'application/json' } }
         );
     }

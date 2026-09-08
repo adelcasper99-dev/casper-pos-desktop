@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getSession } from '@/lib/auth';
-import { PERMISSIONS } from '@/lib/permissions';
+import { requirePlatformHqAdmin } from '@/lib/hq-auth-guard';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
-    const session = await getSession();
-    if (!session?.user || !session.user.permissions?.includes(PERMISSIONS.MANAGE_SETTINGS)) {
-        return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
+    const { session, errorResponse } = await requirePlatformHqAdmin(request);
+    if (errorResponse) return errorResponse;
+
 
     try {
         const body = await request.json();
@@ -66,7 +66,8 @@ export async function POST(request: NextRequest) {
         });
 
         return NextResponse.json({ success: true });
-    } catch (error: any) {
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : 'Unknown error';
+        return NextResponse.json({ success: false, error: msg }, { status: 500 });
     }
 }
