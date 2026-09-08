@@ -15,36 +15,31 @@ async function migrateUserIsolation() {
     }
 
     console.log('=== Step 2: Applying Atomic PostgreSQL DDL Index Migration ===');
-    // Using atomic PostgreSQL transaction: All DDL changes commit together or roll back cleanly on any failure
-    await prisma.$executeRawUnsafe(`
-      BEGIN;
+    // Using Prisma atomic $transaction array: Each DDL executes sequentially inside an atomic transaction block
+    await prisma.$transaction([
+      // 1. User Model Unique Constraints
+      prisma.$executeRawUnsafe(`ALTER TABLE "User" DROP CONSTRAINT IF EXISTS "User_username_key"`),
+      prisma.$executeRawUnsafe(`ALTER TABLE "User" DROP CONSTRAINT IF EXISTS "User_phone_key"`),
+      prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "User_username_key"`),
+      prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "User_phone_key"`),
+      prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "User_tenantId_username_key" ON "User"("tenantId", "username")`),
+      prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "User_tenantId_phone_key" ON "User"("tenantId", "phone") WHERE "phone" IS NOT NULL`),
 
-      -- 1. User Model Unique Constraints
-      ALTER TABLE "User" DROP CONSTRAINT IF EXISTS "User_username_key";
-      ALTER TABLE "User" DROP CONSTRAINT IF EXISTS "User_phone_key";
-      DROP INDEX IF EXISTS "User_username_key";
-      DROP INDEX IF EXISTS "User_phone_key";
+      // 2. Account Model Unique Constraints
+      prisma.$executeRawUnsafe(`ALTER TABLE "Account" DROP CONSTRAINT IF EXISTS "Account_code_key"`),
+      prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "Account_code_key"`),
+      prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "Account_tenantId_code_key" ON "Account"("tenantId", "code")`),
 
-      CREATE UNIQUE INDEX IF NOT EXISTS "User_tenantId_username_key" ON "User"("tenantId", "username");
-      CREATE UNIQUE INDEX IF NOT EXISTS "User_tenantId_phone_key" ON "User"("tenantId", "phone") WHERE "phone" IS NOT NULL;
+      // 3. Role Model Unique Constraints
+      prisma.$executeRawUnsafe(`ALTER TABLE "Role" DROP CONSTRAINT IF EXISTS "Role_name_key"`),
+      prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "Role_name_key"`),
+      prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "Role_tenantId_name_key" ON "Role"("tenantId", "name")`),
 
-      -- 2. Account Model Unique Constraints
-      ALTER TABLE "Account" DROP CONSTRAINT IF EXISTS "Account_code_key";
-      DROP INDEX IF EXISTS "Account_code_key";
-      CREATE UNIQUE INDEX IF NOT EXISTS "Account_tenantId_code_key" ON "Account"("tenantId", "code");
-
-      -- 3. Role Model Unique Constraints
-      ALTER TABLE "Role" DROP CONSTRAINT IF EXISTS "Role_name_key";
-      DROP INDEX IF EXISTS "Role_name_key";
-      CREATE UNIQUE INDEX IF NOT EXISTS "Role_tenantId_name_key" ON "Role"("tenantId", "name");
-
-      -- 4. Supplier Model Unique Constraints
-      ALTER TABLE "Supplier" DROP CONSTRAINT IF EXISTS "Supplier_phone_key";
-      DROP INDEX IF EXISTS "Supplier_phone_key";
-      CREATE UNIQUE INDEX IF NOT EXISTS "Supplier_tenantId_phone_key" ON "Supplier"("tenantId", "phone") WHERE "phone" IS NOT NULL;
-
-      COMMIT;
-    `);
+      // 4. Supplier Model Unique Constraints
+      prisma.$executeRawUnsafe(`ALTER TABLE "Supplier" DROP CONSTRAINT IF EXISTS "Supplier_phone_key"`),
+      prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "Supplier_phone_key"`),
+      prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "Supplier_tenantId_phone_key" ON "Supplier"("tenantId", "phone") WHERE "phone" IS NOT NULL`)
+    ]);
     console.log('✅ Atomic DDL transaction committed successfully.');
 
     console.log('=== Step 3: Verifying PostgreSQL Index Configuration ===');

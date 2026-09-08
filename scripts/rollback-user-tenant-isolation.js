@@ -6,29 +6,25 @@ async function rollbackUserIsolation() {
   try {
     console.log('=== Rollback Step 1: Reverting PostgreSQL Indexes to Global Uniqueness ===');
     
-    await prisma.$executeRawUnsafe(`
-      BEGIN;
+    await prisma.$transaction([
+      // 1. Revert User Indexes
+      prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "User_tenantId_username_key"`),
+      prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "User_tenantId_phone_key"`),
+      prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD CONSTRAINT "User_username_key" UNIQUE ("username")`),
+      prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD CONSTRAINT "User_phone_key" UNIQUE ("phone")`),
 
-      -- 1. Revert User Indexes
-      DROP INDEX IF EXISTS "User_tenantId_username_key";
-      DROP INDEX IF EXISTS "User_tenantId_phone_key";
-      ALTER TABLE "User" ADD CONSTRAINT "User_username_key" UNIQUE ("username");
-      ALTER TABLE "User" ADD CONSTRAINT "User_phone_key" UNIQUE ("phone");
+      // 2. Revert Account Indexes
+      prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "Account_tenantId_code_key"`),
+      prisma.$executeRawUnsafe(`ALTER TABLE "Account" ADD CONSTRAINT "Account_code_key" UNIQUE ("code")`),
 
-      -- 2. Revert Account Indexes
-      DROP INDEX IF EXISTS "Account_tenantId_code_key";
-      ALTER TABLE "Account" ADD CONSTRAINT "Account_code_key" UNIQUE ("code");
+      // 3. Revert Role Indexes
+      prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "Role_tenantId_name_key"`),
+      prisma.$executeRawUnsafe(`ALTER TABLE "Role" ADD CONSTRAINT "Role_name_key" UNIQUE ("name")`),
 
-      -- 3. Revert Role Indexes
-      DROP INDEX IF EXISTS "Role_tenantId_name_key";
-      ALTER TABLE "Role" ADD CONSTRAINT "Role_name_key" UNIQUE ("name");
-
-      -- 4. Revert Supplier Indexes
-      DROP INDEX IF EXISTS "Supplier_tenantId_phone_key";
-      ALTER TABLE "Supplier" ADD CONSTRAINT "Supplier_phone_key" UNIQUE ("phone");
-
-      COMMIT;
-    `);
+      // 4. Revert Supplier Indexes
+      prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "Supplier_tenantId_phone_key"`),
+      prisma.$executeRawUnsafe(`ALTER TABLE "Supplier" ADD CONSTRAINT "Supplier_phone_key" UNIQUE ("phone")`)
+    ]);
     console.log('✅ Rollback DDL transaction committed successfully.');
 
     console.log('=== Rollback Step 2: Verifying Reverted Index Configuration ===');
