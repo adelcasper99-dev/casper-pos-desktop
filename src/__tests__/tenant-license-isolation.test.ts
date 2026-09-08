@@ -20,6 +20,7 @@ vi.mock('@/lib/prisma', () => ({
         tenant: {
             findMany: vi.fn(),
             findUnique: vi.fn(),
+            findFirst: vi.fn(),
             update: vi.fn()
         },
         actionLog: {
@@ -120,20 +121,22 @@ describe('Multi-Tenant License Isolation & HQ Security Guardrails', () => {
                 user: { id: 'user-demo-1', username: 'demo_admin', tenantId: 'demo', role: 'ADMIN' }
             } as any);
 
-            vi.mocked(prisma.tenant.findUnique).mockResolvedValue({
+            const mockTenantData = {
                 id: 'demo',
                 name: 'Demo Store',
-                status: 'active',
+                isActive: true,
                 licenses: [
                     {
                         id: 'lic-demo-1',
                         key: 'CASPER-DEMO-KEY',
                         macAddress: '00:11:22:33:44:55',
                         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-                        createdAt: new Date()
+                        status: 'ACTIVE'
                     }
                 ]
-            } as any);
+            };
+            vi.mocked(prisma.tenant.findUnique).mockResolvedValue(mockTenantData as any);
+            vi.mocked(prisma.tenant.findFirst).mockResolvedValue(mockTenantData as any);
 
             // Attacker attempts to pass query param ?tenantId=mfathy
             const req = new Request('http://localhost/api/tenant/license-info?tenantId=mfathy');
@@ -142,9 +145,9 @@ describe('Multi-Tenant License Isolation & HQ Security Guardrails', () => {
             expect(res.status).toBe(200);
             const json = await res.json();
             
-            // Assert that findUnique was called strictly with session tenantId 'demo', NOT 'mfathy'
-            expect(prisma.tenant.findUnique).toHaveBeenCalledWith({
-                where: { id: 'demo' },
+            // Assert that query was called strictly with session tenantId 'demo', NOT 'mfathy'
+            expect(prisma.tenant.findFirst).toHaveBeenCalledWith({
+                where: { OR: [{ id: 'demo' }, { slug: 'demo' }] },
                 include: expect.any(Object)
             });
 
