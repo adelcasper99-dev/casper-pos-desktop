@@ -160,19 +160,19 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                             {[
-                                { id: 'dashboard', color: 'bg-blue-400', glow: 'shadow-blue-500/20' },
-                                { id: 'pos', color: 'bg-rose-500', glow: 'shadow-rose-500/20' },
-                                { id: 'maintenance', color: 'bg-violet-500', glow: 'shadow-violet-500/20' },
-                                { id: 'maintenance_dashboard', color: 'bg-fuchsia-500', glow: 'shadow-fuchsia-500/20' },
-                                { id: 'hr', color: 'bg-cyan-500', glow: 'shadow-cyan-500/20' },
-                                { id: 'inventory', color: 'bg-blue-500', glow: 'shadow-blue-500/20' },
-                                { id: 'purchasing', color: 'bg-orange-500', glow: 'shadow-orange-500/20' },
-                                { id: 'treasury', color: 'bg-emerald-500', glow: 'shadow-emerald-500/20' },
-                                { id: 'customers', color: 'bg-pink-500', glow: 'shadow-pink-500/20' },
-                                { id: 'reports', color: 'bg-indigo-500', glow: 'shadow-indigo-500/20' },
-                                { id: 'returns', color: 'bg-amber-500', glow: 'shadow-amber-500/20' },
-                                { id: 'logs', color: 'bg-slate-500', glow: 'shadow-slate-500/20' },
-                                { id: 'pos_price_tiers', color: 'bg-cyan-600', glow: 'shadow-cyan-600/20' },
+                                { id: 'dashboard', checkedClass: 'data-[state=checked]:bg-blue-500', glow: 'shadow-blue-500/20', border: 'border-blue-500/30' },
+                                { id: 'pos', checkedClass: 'data-[state=checked]:bg-rose-500', glow: 'shadow-rose-500/20', border: 'border-rose-500/30' },
+                                { id: 'maintenance', checkedClass: 'data-[state=checked]:bg-violet-500', glow: 'shadow-violet-500/20', border: 'border-violet-500/30' },
+                                { id: 'maintenance_dashboard', checkedClass: 'data-[state=checked]:bg-fuchsia-500', glow: 'shadow-fuchsia-500/20', border: 'border-fuchsia-500/30' },
+                                { id: 'hr', checkedClass: 'data-[state=checked]:bg-cyan-500', glow: 'shadow-cyan-500/20', border: 'border-cyan-500/30' },
+                                { id: 'inventory', checkedClass: 'data-[state=checked]:bg-sky-500', glow: 'shadow-sky-500/20', border: 'border-sky-500/30' },
+                                { id: 'purchasing', checkedClass: 'data-[state=checked]:bg-orange-500', glow: 'shadow-orange-500/20', border: 'border-orange-500/30' },
+                                { id: 'treasury', checkedClass: 'data-[state=checked]:bg-emerald-500', glow: 'shadow-emerald-500/20', border: 'border-emerald-500/30' },
+                                { id: 'customers', checkedClass: 'data-[state=checked]:bg-pink-500', glow: 'shadow-pink-500/20', border: 'border-pink-500/30' },
+                                { id: 'reports', checkedClass: 'data-[state=checked]:bg-indigo-500', glow: 'shadow-indigo-500/20', border: 'border-indigo-500/30' },
+                                { id: 'returns', checkedClass: 'data-[state=checked]:bg-amber-500', glow: 'shadow-amber-500/20', border: 'border-amber-500/30' },
+                                { id: 'logs', checkedClass: 'data-[state=checked]:bg-teal-500', glow: 'shadow-teal-500/20', border: 'border-teal-500/30' },
+                                { id: 'pos_price_tiers', checkedClass: 'data-[state=checked]:bg-purple-500', glow: 'shadow-purple-500/20', border: 'border-purple-500/30' },
                             ].map((module) => {
                                 const isActive = getFeatureValue(module.id);
                                 return (
@@ -181,16 +181,26 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                                         className={cn(
                                             "flex items-center justify-between p-2.5 rounded-xl border transition-all duration-200 group",
                                             isActive 
-                                                ? `bg-card/70 dark:bg-card/50 border-border/70 ${module.glow} shadow-sm` 
-                                                : "bg-background/40 border-border/20 text-muted-foreground opacity-60 grayscale hover:grayscale-0 hover:opacity-100"
+                                                ? `bg-card/90 dark:bg-card/70 ${module.border} ${module.glow} shadow-sm ring-1 ring-white/5` 
+                                                : "bg-background/30 border-border/20 text-muted-foreground opacity-50 grayscale hover:opacity-80 hover:grayscale-0"
                                         )}
                                     >
                                         <div className="flex flex-col gap-0.5">
                                             <span className="text-xs font-bold text-foreground">{t(`modules.${module.id}.name`)}</span>
-                                            <span className="text-[8px] font-semibold text-muted-foreground/60 tracking-wider uppercase">COMPONENT</span>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className={cn(
+                                                    "text-[8px] font-bold px-1.5 py-0.2 rounded tracking-wider uppercase",
+                                                    isActive 
+                                                        ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30" 
+                                                        : "bg-zinc-800 text-zinc-500 border border-zinc-700/40"
+                                                )}>
+                                                    {isActive ? "مفعل" : "معطل"}
+                                                </span>
+                                                <span className="text-[8px] font-semibold text-muted-foreground/50 tracking-wider uppercase">COMPONENT</span>
+                                            </div>
                                         </div>
                                         <Switch
-                                            className={cn("scale-90 data-[state=checked]:"+module.color)}
+                                            className={cn("scale-90", module.checkedClass)}
                                             checked={isActive}
                                             onCheckedChange={(checked) => handleFeatureToggle(module.id, checked)}
                                         />
