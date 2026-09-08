@@ -625,8 +625,8 @@
     "semantic_hash": ""
   },
   "src/actions/shift-management-actions.ts": {
-    "mtime": 1784872876.6624913,
-    "ast_hash": "284d54b2af9a26ec5ba8a5e66217ff5a",
+    "mtime": 1788630270.4927344,
+    "ast_hash": "ec6898739155ee56fec054f13ea0c5de",
     "semantic_hash": ""
   },
   "src/actions/spare-parts.ts": {
@@ -660,8 +660,8 @@
     "semantic_hash": ""
   },
   "src/actions/ticket-actions.ts": {
-    "mtime": 1788610860.1191113,
-    "ast_hash": "7ef78e7e3f41ff65493845b00b046fc1",
+    "mtime": 1788652342.461679,
+    "ast_hash": "2d225c628f4e3e328ffbbfdad92167a9",
     "semantic_hash": ""
   },
   "src/actions/tickets-cache.ts": {
@@ -875,8 +875,8 @@
     "semantic_hash": ""
   },
   "src/app/[locale]/maintenance/tickets/[id]/page.tsx": {
-    "mtime": 1788627204.7864244,
-    "ast_hash": "07568fc9e14c9098468afc05fa772a9c",
+    "mtime": 1788645515.979769,
+    "ast_hash": "2acac5166321b69d31ab1e4e648ed8e3",
     "semantic_hash": ""
   },
   "src/app/[locale]/maintenance/tickets/engineers/[id]/EngineerDetailsClient.tsx": {
@@ -890,8 +890,8 @@
     "semantic_hash": ""
   },
   "src/app/[locale]/maintenance/tickets/new/page.tsx": {
-    "mtime": 1788610639.2438343,
-    "ast_hash": "db9f1cc9dd67baff40828000a801da76",
+    "mtime": 1788633335.4926705,
+    "ast_hash": "70fe4878576ce2e8705f28050e4cc65c",
     "semantic_hash": ""
   },
   "src/app/[locale]/maintenance/tickets/page.tsx": {
@@ -900,8 +900,8 @@
     "semantic_hash": ""
   },
   "src/app/[locale]/returns/ReturnCart.tsx": {
-    "mtime": 1773576769.2610483,
-    "ast_hash": "a8c92e324eac7a7301dc4980ce0960be",
+    "mtime": 1788652453.4778965,
+    "ast_hash": "f457fc2328b8f9a25bd6c3a355d1b093",
     "semantic_hash": ""
   },
   "src/app/[locale]/returns/ReturnsCenterClient.tsx": {
@@ -1460,8 +1460,8 @@
     "semantic_hash": ""
   },
   "src/components/shift/ShiftStatusIndicator.tsx": {
-    "mtime": 1788404028.6228771,
-    "ast_hash": "61902fbcc3b5b715ddfcbc1e1bb6cd2a",
+    "mtime": 1788630274.677144,
+    "ast_hash": "68f98d024b55ee28d78feb59e8f52506",
     "semantic_hash": ""
   },
   "src/components/shift/ZReportReceipt.tsx": {
@@ -1545,8 +1545,8 @@
     "semantic_hash": ""
   },
   "src/components/tickets/EstimationModal.tsx": {
-    "mtime": 1777847654.3521051,
-    "ast_hash": "bb686d2e396adae91446142dfc6e092f",
+    "mtime": 1788639405.7172184,
+    "ast_hash": "2d08a5c4dfa48ca00c920a718e94c446",
     "semantic_hash": ""
   },
   "src/components/tickets/PatternLockCanvas.tsx": {
@@ -1560,8 +1560,8 @@
     "semantic_hash": ""
   },
   "src/components/tickets/RejectTicketModal.tsx": {
-    "mtime": 1777847674.6420052,
-    "ast_hash": "54b22264b4096468e70fc9e5b6f90c91",
+    "mtime": 1788632281.8740268,
+    "ast_hash": "fb3b81be79c65042c71a6f18601f31e2",
     "semantic_hash": ""
   },
   "src/components/tickets/ReturnForRepairModal.tsx": {
@@ -1590,13 +1590,13 @@
     "semantic_hash": ""
   },
   "src/components/tickets/TicketPartsManager.tsx": {
-    "mtime": 1784177114.1475103,
-    "ast_hash": "8a9a6bc3ae934560b548af00e8b6e390",
+    "mtime": 1788639785.2699275,
+    "ast_hash": "42f98ed3eccb9d3c758c9eab942aadac",
     "semantic_hash": ""
   },
   "src/components/tickets/TicketPaymentModal.tsx": {
-    "mtime": 1784177114.14804,
-    "ast_hash": "efdce91852b0d10c100d79df1c811a2e",
+    "mtime": 1788641544.1555364,
+    "ast_hash": "e74db36384b6335ff269c853e395bc19",
     "semantic_hash": ""
   },
   "src/components/tickets/TicketPrintOptionsModal.tsx": {
@@ -1635,8 +1635,8 @@
     "semantic_hash": ""
   },
   "src/components/tickets/WarrantyCard.tsx": {
-    "mtime": 1773309345.907888,
-    "ast_hash": "8818e44cbd49a05e1a6e95680115196c",
+    "mtime": 1788645662.13935,
+    "ast_hash": "8c42f706b565fcccab62c361f5535a76",
     "semantic_hash": ""
   },
   "src/components/tickets/WarrantyTicketsTab.tsx": {
@@ -1650,13 +1650,13 @@
     "semantic_hash": ""
   },
   "src/components/tickets/WorkflowActions.tsx": {
-    "mtime": 1788627216.481982,
-    "ast_hash": "8abbe5713e703abf3617e9cfa3924098",
+    "mtime": 1788645656.9306653,
+    "ast_hash": "bd293aec283ae55f0bb6f6f9e19cb7cf",
     "semantic_hash": ""
   },
   "src/components/tickets/wizard/ReturnInitiationModal.tsx": {
-    "mtime": 1784177114.164639,
-    "ast_hash": "64e0b05ea74880293cfb7e8f714fda95",
+    "mtime": 1788645651.89421,
+    "ast_hash": "3815f2aa96b60d5ec175c4f61d990909",
     "semantic_hash": ""
   },
   "src/components/treasury/CashCategoriesManager.tsx": {
@@ -2455,8 +2455,8 @@
     "semantic_hash": ""
   },
   "src/lib/workflow.ts": {
-    "mtime": 1788627196.761311,
-    "ast_hash": "14a191f33ec6d85a2804c41a72142ced",
+    "mtime": 1788640234.0499475,
+    "ast_hash": "8d84afd05c9d9b8245d7e311828dc72b",
     "semantic_hash": ""
   },
   "src/middleware.ts": {
@@ -2465,8 +2465,8 @@
     "semantic_hash": ""
   },
   "src/shared/constants/accounting-mappings.ts": {
-    "mtime": 1784177114.4302962,
-    "ast_hash": "93342d22112116840a7f1f6227b6035a",
+    "mtime": 1788628814.3496735,
+    "ast_hash": "b22b9519032f51fff8412d411edf0266",
     "semantic_hash": ""
   },
   "src/store/cart.ts": {
@@ -4865,8 +4865,8 @@
     "semantic_hash": ""
   },
   "src/__tests__/sync/multi-tenant-isolation.test.ts": {
-    "mtime": 1788608856.3449514,
-    "ast_hash": "24828b7c2199baea8bc79dc6c64e362e",
+    "mtime": 1788633313.9325347,
+    "ast_hash": "19c592fc8bc1f0d08fd18cf12a2f0995",
     "semantic_hash": ""
   },
   "src/__tests__/test-generate-sku.test.ts": {
@@ -4915,8 +4915,8 @@
     "semantic_hash": ""
   },
   "src/actions/super-admin.ts": {
-    "mtime": 1788607302.7537844,
-    "ast_hash": "958e6107f3d72c7cba383f274114d21e",
+    "mtime": 1788633297.450296,
+    "ast_hash": "5b1491fd35a4b01d2e5938d9d4208963",
     "semantic_hash": ""
   },
   "src/actions/technician-payroll-actions.ts": {
@@ -5560,8 +5560,8 @@
     "semantic_hash": ""
   },
   "landing-page/index.html": {
-    "mtime": 1784994553.4458086,
-    "ast_hash": "671c37aa5e9f258316eb95c94340b97b",
+    "mtime": 1788714064.416285,
+    "ast_hash": "db16888d4abcf2e74011150b701e5b08",
     "semantic_hash": ""
   },
   "scripts/generate-schemas.mjs": {
@@ -5750,8 +5750,8 @@
     "semantic_hash": ""
   },
   "src/app/global-error.tsx": {
-    "mtime": 1784860373.9117386,
-    "ast_hash": "7e85f953e360ff878f6448136411e8fa",
+    "mtime": 1788630899.0838003,
+    "ast_hash": "edd607bf5b0092f976f9caf7f93ee89e",
     "semantic_hash": ""
   },
   "src/app/signup/SignupForm.tsx": {
@@ -5865,13 +5865,13 @@
     "semantic_hash": ""
   },
   "landing-page/casper dark logo.png": {
-    "mtime": 1784959522.9635768,
-    "ast_hash": "121ec6149f3d411ea744bc0d4bc9b43e",
+    "mtime": 1788224088.6645308,
+    "ast_hash": "9d71b644613f05fdada659acc810a099",
     "semantic_hash": ""
   },
   "landing-page/casper-logo.png": {
-    "mtime": 1784959522.9635768,
-    "ast_hash": "121ec6149f3d411ea744bc0d4bc9b43e",
+    "mtime": 1788224088.6625319,
+    "ast_hash": "9d71b644613f05fdada659acc810a099",
     "semantic_hash": ""
   },
   ".vscode/mcp.json": {
@@ -6165,13 +6165,483 @@
     "semantic_hash": ""
   },
   "src/__tests__/sync/scale-50k-benchmark.test.ts": {
-    "mtime": 1788609690.0085278,
-    "ast_hash": "9515b393a83411444abd42b6429d0d17",
+    "mtime": 1788633321.9532712,
+    "ast_hash": "5d1bcb8e46408cad760640c269b77a4b",
     "semantic_hash": ""
   },
   "src/components/hq/ChangeSuperAdminPasswordModal.tsx": {
     "mtime": 1788607242.917673,
     "ast_hash": "a6b450e774883229badabaace1159b76",
+    "semantic_hash": ""
+  },
+  "src/__tests__/settlement-architecture.test.ts": {
+    "mtime": 1788633304.0088508,
+    "ast_hash": "2298be0d44860e56a299d07e3c5400f9",
+    "semantic_hash": ""
+  },
+  "src/components/tickets/ReopenDeliveredTicketModal.tsx": {
+    "mtime": 1788631244.09035,
+    "ast_hash": "4a17f904dbbb711fa8ec2919bfff20c9",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/009c8594af36ea5dffc6c79667555fcb.jpg": {
+    "mtime": 1787954666.6151905,
+    "ast_hash": "8e0360ea6bd077e1265cd85c0468afd2",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/167e41a59bd9f4f39405dd08d78f9122.jpg": {
+    "mtime": 1787954486.4994755,
+    "ast_hash": "0868265daaa1b85aa2806c550b777420",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/88eb54d740edad4de105b85c4f3e2595.jpg": {
+    "mtime": 1787954713.4791782,
+    "ast_hash": "187b44583468e8c409edbe5b72da44bd",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/965b7a8408ff8c087ed8a78c3cced03d.jpg": {
+    "mtime": 1787954613.181604,
+    "ast_hash": "0115ad6c540a5937eaa0044dfda6ab67",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/afc44095f50756cc609ba691e88bcc97.jpg": {
+    "mtime": 1787954524.2433562,
+    "ast_hash": "5a549ecfc6b1a8ee8f09616cd6e4f147",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/apple-light-hero.png": {
+    "mtime": 1787926636.4621792,
+    "ast_hash": "4b1ace623f182b699793d002698d588e",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/apple-style-preview.png": {
+    "mtime": 1787926013.1322248,
+    "ast_hash": "5944188455a2a8a6ce011e99b67229bb",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/benchmark-1-square-main.png": {
+    "mtime": 1787928653.1332974,
+    "ast_hash": "d6e23b60e6e375617f5ab089f857a03a",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/benchmark-1-square-pos.png": {
+    "mtime": 1787928593.6070962,
+    "ast_hash": "3a170d53c8d5a5d4cf9440fe14c04d06",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/benchmark-1-square-retail.png": {
+    "mtime": 1787928621.5838656,
+    "ast_hash": "b54d0687e98af97002f268e5d607e395",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/benchmark-2-stripe-terminal-hero.png": {
+    "mtime": 1787928713.297587,
+    "ast_hash": "ffdadb5f2ef02328b8722bc0f365e5ec",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/benchmark-2-stripe-terminal.png": {
+    "mtime": 1787928683.7454035,
+    "ast_hash": "233189c581c39977bfff0be56073f0b5",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/benchmark-3-toast-pos.png": {
+    "mtime": 1787928765.4988804,
+    "ast_hash": "a4fcbdfef82a096f846cea37acc4ad14",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/benchmark-4-lightspeed-pos.png": {
+    "mtime": 1787928817.4805162,
+    "ast_hash": "558a3d90afff5390fb1ebca9d1bf3dd1",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/benchmark-5-shopify-pos.png": {
+    "mtime": 1787928870.770074,
+    "ast_hash": "3c42724d50f01e0fb18046148c7b1a4e",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper-complete-preview.png": {
+    "mtime": 1787926426.0824733,
+    "ast_hash": "6ce20f0d92cfeafc181875984b6214e4",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper-full-features-apple.png": {
+    "mtime": 1787926391.3987575,
+    "ast_hash": "8822b221487f92ecdd5216907b03e4f6",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper-full-high-converting.png": {
+    "mtime": 1787927075.0878847,
+    "ast_hash": "a6a3c5b215da9f95c61e4226274cc8b0",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper-light-mode-full.png": {
+    "mtime": 1787926675.7861524,
+    "ast_hash": "c4b868f581d388a579cfd6a3a5dee119",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper-logo-badge.png": {
+    "mtime": 1788207222.613372,
+    "ast_hash": "1548d88c96fb4b9ae3b3a0fd49a25477",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper-logo-clean.png": {
+    "mtime": 1788207224.6359284,
+    "ast_hash": "1e2548ce79c5e381c70e0417beb52117",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper-logo-cropped.png": {
+    "mtime": 1788207176.6693916,
+    "ast_hash": "5a467856f5a20855cd9353fa38066d10",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper-logo-square.png": {
+    "mtime": 1788207194.4327245,
+    "ast_hash": "babf4517c39741c5aabafbd3541ade5b",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper-logo-transparent.png": {
+    "mtime": 1788207195.6269023,
+    "ast_hash": "76ab9eb9ff423d23cfe708569f87c13e",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper-logo.png": {
+    "mtime": 1784868106.6225739,
+    "ast_hash": "9d71b644613f05fdada659acc810a099",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper_erp_dashboard_desktop.jpg": {
+    "mtime": 1788220317.0671237,
+    "ast_hash": "f9b7cc316330fec49eaf02fb3498d0ca",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper_erp_dashboard_desktop.webp": {
+    "mtime": 1788448736.9853637,
+    "ast_hash": "97f84f6ca06a578d7045720693d13970",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper_exact_trio_mockup.jpg": {
+    "mtime": 1788364940.7423158,
+    "ast_hash": "536a5b02bd317f7c88fb894e043af0fb",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper_hardware_bridge.jpg": {
+    "mtime": 1788220297.9724693,
+    "ast_hash": "959fd27492f2b31bc632ab1c0a410b9b",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper_hardware_bridge.webp": {
+    "mtime": 1788448735.9869406,
+    "ast_hash": "5bc64e291ffda52ab1c6683ddf07c7e3",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper_hardware_matrix.jpg": {
+    "mtime": 1788225241.978853,
+    "ast_hash": "9ff00ec0ef0fe2f3a00f9a51de2403b5",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper_hardware_matrix.webp": {
+    "mtime": 1788448736.5053484,
+    "ast_hash": "95a78c1922838fc098800d89641c16a8",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper_multibranch_hq.jpg": {
+    "mtime": 1788225259.2256744,
+    "ast_hash": "a9f5dbab25655c04ff6fc25e67bc7163",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper_multibranch_hq.webp": {
+    "mtime": 1788448735.4478052,
+    "ast_hash": "1180126e7d3d93c4bab27ea1881d3266",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper_multidevice_resilience.jpg": {
+    "mtime": 1788358321.9070995,
+    "ast_hash": "afe4e0ce8a13148c72995ff794e9f555",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper_multidevice_resilience.webp": {
+    "mtime": 1788448739.030946,
+    "ast_hash": "d44bffe7b1930245915e3a6825ac26a4",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper_pos_terminal_hero.jpg": {
+    "mtime": 1788220207.0389273,
+    "ast_hash": "a4171d3d9aee83352425a97b35fbe15a",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper_pos_terminal_hero.webp": {
+    "mtime": 1788448734.9633648,
+    "ast_hash": "26ded1cdd97d2d5c82c0e1a1f15cc832",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper_tax_eta_receipt.jpg": {
+    "mtime": 1788225222.924393,
+    "ast_hash": "fef4cf1d9cb9f0d94f346aa1f55eb289",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper_tax_eta_receipt.webp": {
+    "mtime": 1788448737.4503913,
+    "ast_hash": "49841be418f4d2eae46c6b431bfd26a0",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper_trio_exact.jpg": {
+    "mtime": 1788365110.7556458,
+    "ast_hash": "cf78e99ef32b060830d756816dd6d77a",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper_trio_exact.webp": {
+    "mtime": 1788448737.7084818,
+    "ast_hash": "ee21a31bb4780afb261e0ee2a44dc1d8",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/casper_vs_traditional.jpg": {
+    "mtime": 1788220826.3770587,
+    "ast_hash": "74adcc60298e4fb457d15fe08ffb0346",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/ce52794adfd0d67231a642129cf053d9.jpg": {
+    "mtime": 1787954565.6426957,
+    "ast_hash": "ee96f5c9caa2372358e5c24779936901",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/eb95082c7981d9e07a4a12822c33b345.jpg": {
+    "mtime": 1787954515.8178134,
+    "ast_hash": "f0364f9c24f3eb8e7156a638731b1afe",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/hero-ipad-pos-light.png": {
+    "mtime": 1787926950.8564258,
+    "ast_hash": "8e42bdd624296c37c8ac6150e843bb42",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/hero-video-poster.webp": {
+    "mtime": 1788448685.3120766,
+    "ast_hash": "529cbb586a24c90064b3e95d181e0298",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/lead-modal-crisp-light.png": {
+    "mtime": 1787927044.034779,
+    "ast_hash": "a9592bce80c2c85688599ee2add76144",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/lead-modal-preview.png": {
+    "mtime": 1787927007.84867,
+    "ast_hash": "8806f2bceeac6454d2541201f9a94e69",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/pos-comparison-trucks.jpg": {
+    "mtime": 1787954666.6151905,
+    "ast_hash": "8e0360ea6bd077e1265cd85c0468afd2",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/pos-comparison-trucks.webp": {
+    "mtime": 1788448738.0361567,
+    "ast_hash": "a9d9e2cf3e294bddee13be0874c65b32",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/pos-hardware-transactflow.jpg": {
+    "mtime": 1787954515.8178134,
+    "ast_hash": "f0364f9c24f3eb8e7156a638731b1afe",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/pos-hero-multidevice-dark.jpg": {
+    "mtime": 1787954713.4791782,
+    "ast_hash": "187b44583468e8c409edbe5b72da44bd",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/pos-laptop-desk-biznext.png": {
+    "mtime": 1787954753.846992,
+    "ast_hash": "5b06a34cea95893420880d2e14094c52",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/pos-mobile-commissions.jpg": {
+    "mtime": 1787954524.2433562,
+    "ast_hash": "5a549ecfc6b1a8ee8f09616cd6e4f147",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/pos-mobile-commissions.webp": {
+    "mtime": 1788448738.518677,
+    "ast_hash": "924600e97eafa50dbd6d8aed5c962564",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/pos-suite-jabit.jpg": {
+    "mtime": 1787954486.4994755,
+    "ast_hash": "0868265daaa1b85aa2806c550b777420",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/pos-team-collaboration.jpg": {
+    "mtime": 1787954613.181604,
+    "ast_hash": "0115ad6c540a5937eaa0044dfda6ab67",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/pos-terminal-white-dual.jpg": {
+    "mtime": 1787954565.6426957,
+    "ast_hash": "ee96f5c9caa2372358e5c24779936901",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/preview-full.png": {
+    "mtime": 1787925661.8866446,
+    "ast_hash": "55c28fbc9360dc9db1a0685c7570a78a",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/real-app/customers.png": {
+    "mtime": 1788325117.486885,
+    "ast_hash": "06d913ffe6a5919a58f5f22eacf0ca06",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/real-app/dashboard.png": {
+    "mtime": 1788324976.4570925,
+    "ast_hash": "70ce760b3f8fc848919c7c95bf347d9b",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/real-app/hr.png": {
+    "mtime": 1788325204.7946064,
+    "ast_hash": "7324bd93da66224616ffce7bfdabac83",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/real-app/inventory.png": {
+    "mtime": 1788325238.2344656,
+    "ast_hash": "b4bac687d595b4d91d27e78b61940d4f",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/real-app/pos.png": {
+    "mtime": 1788325041.8675349,
+    "ast_hash": "69073d584f89a85e0df91d5e2833e83b",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/real-app/shift-modal.png": {
+    "mtime": 1788325027.9973128,
+    "ast_hash": "fcffbc7028eefe8c1e1a50ebdd2668df",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/real-app/spare-parts.png": {
+    "mtime": 1788325170.8128114,
+    "ast_hash": "4629dda4ffffe807da842c74a81ecd2b",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/real-app/treasury.png": {
+    "mtime": 1788325075.413985,
+    "ast_hash": "85c7265cef1ab1012cf119252638cc0f",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/real-computer-pos-dark.png": {
+    "mtime": 1787927414.9112957,
+    "ast_hash": "357d6bc3365f69cf22f4937c05584eda",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/real-computer-pos-light.png": {
+    "mtime": 1787927393.2945147,
+    "ast_hash": "26fdc9b5963877e2e196670a23f1ea2e",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/real_repair_shop_devices.jpg": {
+    "mtime": 1788358431.9848228,
+    "ast_hash": "22281540df51513ceab6ca723ca355b8",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/real_repair_shop_hijab.jpg": {
+    "mtime": 1788358486.940007,
+    "ast_hash": "b85d8fc9696125a6c46e0d7dc6d8d154",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/studio-hero-dark.png": {
+    "mtime": 1787928504.912171,
+    "ast_hash": "7383e606b55a1b1f2b41e43c825417f4",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/studio-hero-light.png": {
+    "mtime": 1787928304.2761922,
+    "ast_hash": "3ef587e20f943692518348163ca086be",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/studio-hero-receipt-open.png": {
+    "mtime": 1787928486.185783,
+    "ast_hash": "d043a173ff55d84707845b37e5592789",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/studio-hero-refined-light.png": {
+    "mtime": 1787928442.5408695,
+    "ast_hash": "3007c88aed05a43025e4c98ce8a0169b",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/studio-hero-top-light.png": {
+    "mtime": 1787928390.9223714,
+    "ast_hash": "8ee5c70b1fbb9b909561b203d5678f14",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/ui-pipeline-features-bento.png": {
+    "mtime": 1787941515.7124767,
+    "ast_hash": "ee4d0ea6c381fd69d61513af9771a552",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/ui-pipeline-hero-dark-top.png": {
+    "mtime": 1787941296.2778492,
+    "ast_hash": "e7932e6893e2c949fdee049ec7f656a6",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/ui-pipeline-hero-light-top.png": {
+    "mtime": 1787941335.472056,
+    "ast_hash": "f374d24693560ba00becdd88f196e1e9",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/ui-pipeline-hero-light.png": {
+    "mtime": 1787941252.434906,
+    "ast_hash": "a0e5de857dbd1b4a40b00a5e5e36b7d7",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/ui-pipeline-mobile-hero-fixed.png": {
+    "mtime": 1787941696.5876818,
+    "ast_hash": "2eedc4e7db9c9f9c7961033c49604c02",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/ui-pipeline-mobile-hero-fresh.png": {
+    "mtime": 1787941758.6735802,
+    "ast_hash": "9e6faa2f884390cd9892e9ad05f30534",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/ui-pipeline-mobile-hero.png": {
+    "mtime": 1787941600.0179918,
+    "ast_hash": "ac371a964c421deea5a3f0c7436fca44",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/ui-pipeline-showcase-light.png": {
+    "mtime": 1787941379.7428312,
+    "ast_hash": "7f289358f603c6a51cb73fa0e32cb589",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/ui-pipeline-showcase-slide4.png": {
+    "mtime": 1787941420.0219269,
+    "ast_hash": "092dcdbc8c96b53607bfac6221de2d80",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/ui-pipeline-showcase-slide5.png": {
+    "mtime": 1787941468.3716116,
+    "ast_hash": "936e9cef32e81fa8b331c6975972eb5c",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/video-tour-modal-preview.png": {
+    "mtime": 1787926977.5552258,
+    "ast_hash": "5022d0c5308d59350c3645fea9ee8f84",
+    "semantic_hash": ""
+  },
+  "landing-page/casper-logo-badge.png": {
+    "mtime": 1788207222.7009242,
+    "ast_hash": "1548d88c96fb4b9ae3b3a0fd49a25477",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/hero-video-compressed.mp4": {
+    "mtime": 1788448691.7448504,
+    "ast_hash": "0c7d7c43aaf99d95a32d93b11ba5ee58",
+    "semantic_hash": ""
+  },
+  "landing-page/assets/hero-video.mp4": {
+    "mtime": 1788448691.7448504,
+    "ast_hash": "0c7d7c43aaf99d95a32d93b11ba5ee58",
+    "semantic_hash": ""
+  },
+  "landing-page/hero-video.mp4": {
+    "mtime": 1788210306.1341915,
+    "ast_hash": "cf5991a2a581c1cbff7aa778c7c97ac8",
     "semantic_hash": ""
   }
 }
