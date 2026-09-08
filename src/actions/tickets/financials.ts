@@ -2,12 +2,13 @@
 
 import { prisma } from "@/lib/prisma";
 import { secureAction } from "@/lib/safe-action";
-import { PERMISSIONS } from "@/lib/permissions";
+import { PERMISSIONS, hasPermission } from "@/lib/permissions";
 import { getCurrentUser } from "../auth";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "@prisma/client/runtime/library";
 import { getCurrentShiftInternal } from "../shift-management-actions";
 import { AccountingEngine } from "@/lib/accounting/transaction-factory";
+import { deductTreasuryBalance } from "@/lib/treasury-guard";
 
 export const processTicketPayment = secureAction(async (data: {
     ticketId: string,
@@ -227,9 +228,13 @@ export const refundTicket = secureAction(async (data: {
                 }
             });
 
-            await tx.treasury.update({
-                where: { id: treasury.id },
-                data: { balance: { decrement: amount } }
+            const canGoNegative = hasPermission(user?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+            await deductTreasuryBalance({
+                tx,
+                treasuryId: treasury.id,
+                amount: amount,
+                actionDescription: `استرجاع تذكرة صيانة #${ticket.barcode}`,
+                allowOverdraftOverride: canGoNegative ? true : undefined,
             });
         }
 

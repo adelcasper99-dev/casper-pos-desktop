@@ -60,7 +60,7 @@ export default function WarrantyCard({ ticket, onUpdate }: WarrantyCardProps) {
                     <span className="text-[9px] font-black uppercase text-zinc-600 tracking-widest">تاريخ انتهاء الضمان</span>
                     <div className="flex items-center gap-2 mt-1">
                         <ShieldCheck className={cn("w-3.5 h-3.5", isExpired ? "text-red-500" : "text-emerald-500")} />
-                        <span className={cn("text-[11px] font-bold", isExpired ? "text-red-400" : "text-emerald-400")}>
+                        <span className={cn("text-[11px] font-bold", isExpired ? "text-red-400" : "text-emerald-400")} suppressHydrationWarning>
                             {ticket.warrantyExpiryDate ? new Date(ticket.warrantyExpiryDate).toLocaleDateString('ar-EG') : 'بدون ضمان'}
                         </span>
                     </div>

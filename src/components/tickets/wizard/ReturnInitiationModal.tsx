@@ -41,14 +41,6 @@ export function ReturnInitiationModal({ isOpen, onClose, ticketId, barcode, part
     const [ticketParts, setTicketParts] = useState<any[]>(parts || [])
     const [fetchingParts, setFetchingParts] = useState(false)
 
-    // Fetch parts if not provided
-    useState(() => {
-        if (!parts && isOpen) {
-            // We'll use a dynamic import or fetch here if needed, 
-            // but for now let's assume we can fetch via ticketId
-        }
-    })
-
     const toggleDamaged = (id: string) => {
         const next = new Set(damagedPartIds);
         if (next.has(id)) next.delete(id);

@@ -139,11 +139,11 @@ export default function EstimationModal({
             }
             className="max-w-md"
         >
-            <div className="space-y-7 pt-2" dir="rtl">
+            <div className="space-y-4 pt-1" dir="rtl">
 
                 {/* ── Cost Input ─────────────────────────────── */}
-                <div className="space-y-4">
-                    <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
+                <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-1.5">
                         <Calculator className="w-3.5 h-3.5 text-primary" />
                         التكلفة التقريبية (EGP)
                     </label>
@@ -154,22 +154,22 @@ export default function EstimationModal({
                             value={price}
                             onChange={(e) => setPrice(e.target.value)}
                             placeholder="0"
-                            className="h-20 text-4xl font-black text-center bg-secondary/30 dark:bg-zinc-900/50 border-border dark:border-white/5 rounded-2xl focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all pr-12 tabular-nums"
+                            className="h-12 text-2xl font-black text-center bg-secondary/30 dark:bg-zinc-900/50 border-border dark:border-white/5 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all pr-10 tabular-nums"
                         />
-                        <span className="absolute left-5 top-1/2 -translate-y-1/2 text-xs font-black text-muted-foreground/50 group-focus-within:text-primary transition-colors">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-black text-muted-foreground/60 group-focus-within:text-primary transition-colors">
                             EGP
                         </span>
                     </div>
                     {/* Quick price buttons */}
-                    <div className="grid grid-cols-6 gap-2">
+                    <div className="grid grid-cols-6 gap-1.5">
                         {PRICE_PRESETS.map((p) => (
                             <button
                                 key={p}
                                 onClick={() => setPrice(p.toString())}
                                 className={cn(
-                                    "h-11 rounded-xl text-[11px] font-black border transition-all active:scale-95",
+                                    "h-8 rounded-lg text-[11px] font-bold border transition-all active:scale-95",
                                     priceNum === p
-                                        ? "bg-primary border-primary text-primary-foreground shadow-[0_4px_12px_rgba(8,145,178,0.2)]"
+                                        ? "bg-primary border-primary text-primary-foreground shadow-sm"
                                         : "bg-secondary/40 border-border/50 text-muted-foreground hover:bg-secondary hover:text-foreground"
                                 )}
                             >
@@ -180,32 +180,32 @@ export default function EstimationModal({
                 </div>
 
                 {/* ── Duration Picker ─────────────────────────── */}
-                <div className="space-y-4">
-                    <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
+                <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-1.5">
                         <Clock className="w-3.5 h-3.5 text-amber-500" />
                         موعد التسليم المتوقع
                     </label>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-3 gap-1.5">
                         {DURATION_PRESETS.map((d) => (
                             <button
                                 key={d.value}
                                 onClick={() => setDuration(d.value)}
                                 className={cn(
-                                    "h-14 rounded-xl text-sm font-black border transition-all flex items-center justify-center gap-2 active:scale-95",
+                                    "h-9 rounded-lg text-xs font-bold border transition-all flex items-center justify-center gap-1.5 active:scale-95",
                                     duration === d.value
-                                        ? "bg-amber-500 border-amber-500 text-white shadow-[0_4px_15px_rgba(245,158,11,0.3)]"
+                                        ? "bg-amber-500 border-amber-500 text-white shadow-sm"
                                         : "bg-secondary/40 border-border/50 text-muted-foreground hover:bg-secondary hover:text-foreground"
                                 )}
                             >
-                                <Clock className="w-3.5 h-3.5 opacity-60" />
+                                <Clock className="w-3 h-3 opacity-60" />
                                 {d.label}
                             </button>
                         ))}
                     </div>
                     {/* Custom duration in minutes */}
-                    <div className="flex items-center gap-3 bg-secondary/30 dark:bg-zinc-900/30 border border-border dark:border-white/5 rounded-2xl p-4 transition-all focus-within:border-amber-500/50">
-                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest whitespace-nowrap">
-                            أو أدخل بالدقائق
+                    <div className="flex items-center gap-2 bg-secondary/30 dark:bg-zinc-900/30 border border-border dark:border-white/5 rounded-xl p-2 transition-all focus-within:border-amber-500/50">
+                        <span className="text-[10px] font-bold text-muted-foreground whitespace-nowrap">
+                            أو بالدقائق:
                         </span>
                         <Input
                             type="number"
@@ -213,10 +213,10 @@ export default function EstimationModal({
                             value={duration?.toString() ?? ""}
                             onChange={(e) => setDuration(Number(e.target.value) || null)}
                             placeholder="مثال: 90"
-                            className="h-10 text-sm font-bold text-center bg-background/50 border-border/50 rounded-lg focus:border-amber-500 transition-all"
+                            className="h-7 text-xs font-bold text-center bg-background/50 border-border/50 rounded-md focus:border-amber-500 transition-all flex-1"
                         />
                         {duration && (
-                            <div className="bg-amber-500/10 px-3 py-1.5 rounded-full border border-amber-500/20 shrink-0">
+                            <div className="bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20 shrink-0">
                                 <span className="text-[10px] font-black text-amber-600 dark:text-amber-400 whitespace-nowrap">
                                     {duration >= 1440
                                         ? `${Math.floor(duration / 1440)} يوم`
@@ -231,21 +231,21 @@ export default function EstimationModal({
 
                 {/* ── Summary Banner ──────────────────────────── */}
                 {isValid && (
-                    <div className="p-5 bg-primary/5 dark:bg-primary/10 border border-primary/20 rounded-3xl flex items-center justify-between shadow-sm">
-                        <div className="flex flex-col gap-1">
-                            <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">إجمالي التقدير</span>
-                            <span className="text-2xl font-black text-foreground tabular-nums">
-                                {priceNum.toLocaleString("ar-EG")} <span className="text-xs font-bold text-primary">EGP</span>
+                    <div className="p-2.5 bg-primary/5 dark:bg-primary/10 border border-primary/20 rounded-xl flex items-center justify-between shadow-sm animate-in fade-in duration-200">
+                        <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] font-bold uppercase text-muted-foreground">إجمالي التقدير</span>
+                            <span className="text-base font-black text-foreground tabular-nums">
+                                {priceNum.toLocaleString("ar-EG")} <span className="text-[10px] font-bold text-primary">EGP</span>
                             </span>
                         </div>
-                        <div className="h-10 w-[1px] bg-primary/20 mx-4" />
-                        <div className="flex flex-col gap-1 text-right">
-                            <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">موعد التسليم</span>
-                            <span className="text-sm font-black text-amber-600 dark:text-amber-400">
+                        <div className="h-6 w-[1px] bg-primary/20 mx-2" />
+                        <div className="flex flex-col gap-0.5 text-right">
+                            <span className="text-[9px] font-bold uppercase text-muted-foreground">موعد التسليم</span>
+                            <span className="text-xs font-black text-amber-600 dark:text-amber-400">
                                 {duration! >= 1440
                                     ? `${Math.floor(duration! / 1440)} يوم`
                                     : duration! >= 60
-                                    ? `${Math.floor(duration! / 60)} ساعة`
+                                    ? `${Math.floor(duration! / 60)} ساعة ${duration! % 60 > 0 ? (duration! % 60) + " د" : ""}`
                                     : `${duration} دقيقة`}
                             </span>
                         </div>
@@ -253,12 +253,12 @@ export default function EstimationModal({
                 )}
 
                 {/* ── CTA Buttons ─────────────────────────────── */}
-                <div className="flex gap-4 pt-4">
+                <div className="flex gap-2.5 pt-1">
                     <Button
                         variant="ghost"
                         onClick={onClose}
                         disabled={isLoading}
-                        className="flex-1 h-14 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-2xl font-bold transition-all"
+                        className="flex-1 h-10 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-xl font-bold transition-all text-xs"
                     >
                         إلغاء
                     </Button>
@@ -266,17 +266,17 @@ export default function EstimationModal({
                         onClick={handleConfirm}
                         disabled={!isValid || isLoading}
                         className={cn(
-                            "flex-[2.5] h-14 font-black text-base rounded-2xl transition-all flex items-center justify-center gap-3 relative overflow-hidden group",
+                            "flex-[2] h-10 font-black text-xs rounded-xl transition-all flex items-center justify-center gap-2 relative overflow-hidden group",
                             isValid
-                                ? "bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_8px_25px_-5px_rgba(8,145,178,0.4)] active:scale-[0.98]"
+                                ? "bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_4px_14px_-2px_rgba(8,145,178,0.4)] active:scale-[0.98]"
                                 : "bg-muted text-muted-foreground cursor-not-allowed opacity-50"
                         )}
                     >
                         {isLoading ? (
-                            <Loader2 className="w-5 h-5 animate-spin" />
+                            <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
                             <>
-                                <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                                 <span>تأكيد وبدء الفحص</span>
                             </>
                         )}

@@ -193,10 +193,17 @@ export default function WorkflowActions({ ticket, user, onUpdate, onReject, onAd
     const allowedActions = transitions.filter(tr => tr.allowed);
     const blockedActions = transitions.filter(tr => !tr.allowed);
 
-    const hasParts = !!(ticket.parts && ticket.parts.length > 0);
+    const activeParts = (ticket.parts as any[])?.filter(p => p.status !== 'REFUNDED' && !p.deletedAt) || [];
+    const hasParts = activeParts.length > 0;
 
     let primaryAction = allowedActions[0];
-    if (ticket.status === TicketStatus.NEW) {
+
+    if (hasParts && !['COMPLETED', 'PICKED_UP', 'DELIVERED', 'PAID_DELIVERED', 'VOIDED', 'REJECTED', 'CANCELLED'].includes(ticket.status)) {
+        // Once parts/services are added, primary workflow action automatically advances to "تم الاصلاح"
+        primaryAction = allowedActions.find(a => a.actionLabel === "تم الاصلاح" || a.actionLabel === "Mark Completed") ||
+            allowedActions.find(a => a.actionLabel === "بدء الإصلاح" || a.actionLabel === "Start Repair") ||
+            allowedActions[0];
+    } else if (ticket.status === TicketStatus.NEW) {
         primaryAction = allowedActions.find(a => a.actionLabel === "تحديد التكلفة والوقت" || a.actionLabel === "Start Diagnosis" || a.actionLabel === "Start Repair" || a.actionLabel === "بدء الإصلاح") ||
             allowedActions.find(a => a.actionLabel === "Send to Center") ||
             allowedActions[0];
@@ -205,17 +212,9 @@ export default function WorkflowActions({ ticket, user, onUpdate, onReject, onAd
             allowedActions.find(a => a.actionLabel === "بدء الإصلاح") ||
             allowedActions[0];
     } else if (ticket.status === TicketStatus.AT_CENTER || ticket.status === TicketStatus.IN_PROGRESS || ticket.status === TicketStatus.PENDING_APPROVAL) {
-        if (hasParts) {
-            // Once parts/services are added, primary workflow action advances to "تم الاصلاح"
-            primaryAction = allowedActions.find(a => a.actionLabel === "تم الاصلاح" || a.actionLabel === "Mark Completed") ||
-                allowedActions.find(a => a.actionLabel === "إضافة قطعة غيار") ||
-                allowedActions[0];
-        } else {
-            // If no parts added yet, primary action is "إضافة قطعة غيار"
-            primaryAction = allowedActions.find(a => a.actionLabel === "إضافة قطعة غيار" || a.actionLabel === "Add Spare Part") ||
-                allowedActions.find(a => a.actionLabel === "تم الاصلاح") ||
-                allowedActions[0];
-        }
+        primaryAction = allowedActions.find(a => a.actionLabel === "إضافة قطعة غيار" || a.actionLabel === "Add Spare Part") ||
+            allowedActions.find(a => a.actionLabel === "تم الاصلاح") ||
+            allowedActions[0];
     } else if (ticket.status === TicketStatus.COMPLETED) {
         primaryAction = allowedActions.find(a => a.actionLabel === "الدفع" || a.actionLabel === "Close Ticket" || a.actionLabel === "Mark Delivered") ||
             allowedActions[0];
@@ -299,11 +298,11 @@ export default function WorkflowActions({ ticket, user, onUpdate, onReject, onAd
                             className="w-full justify-center"
                         />
                         {ticket.logs && ticket.logs.length > 0 && (
-                            <div className="text-[9px] text-zinc-500 font-medium px-1 flex items-center gap-1">
+                            <div className="text-[9px] text-zinc-500 font-medium px-1 flex items-center gap-1" suppressHydrationWarning>
                                 <MessageCircle className="w-2.5 h-2.5" />
-                                آخر إبلاغ: {new Date(ticket.logs[0].sentAt).toLocaleString('ar-EG', { 
+                                آخر إبلاغ: <span suppressHydrationWarning>{new Date(ticket.logs[0].sentAt).toLocaleString('ar-EG', { 
                                     hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' 
-                                })}
+                                })}</span>
                             </div>
                         )}
                     </div>

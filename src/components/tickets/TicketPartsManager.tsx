@@ -111,6 +111,8 @@ export default function TicketPartsManager({
     useEffect(() => {
         if (isAddingPartExternal) {
             setIsAddingPart(true);
+        } else {
+            setIsAddingPart(false);
         }
     }, [isAddingPartExternal]);
 
@@ -118,6 +120,7 @@ export default function TicketPartsManager({
         if (!isLoading) {
             setIsAddingPart(false);
             onCloseAddingPartExternal?.();
+            resetForm();
         }
     };
 
@@ -505,89 +508,83 @@ export default function TicketPartsManager({
             <GlassModal
                 isOpen={isAddingPart}
                 onClose={handleCloseModal}
-                title={t('title')}
-                className="max-w-lg"
+                title="إدارة قطع الغيار والخدمات"
+                className="max-w-md"
             >
-                <div className="space-y-6 py-4">
+                <div className="space-y-3 py-1" dir="rtl">
                     {/* Mode Toggle */}
-                    <div className="flex bg-muted p-1.5 rounded-2xl border border-border mb-6">
+                    <div className="flex bg-muted/60 p-1 rounded-xl border border-border mb-2">
                         {(['part', 'service', 'transfer'] as const).map(mode => (
                             <button
                                 key={mode}
                                 onClick={() => setUsageType(mode)}
                                 className={cn(
-                                    "flex-1 py-3 text-sm font-black rounded-xl transition-all duration-300",
+                                    "flex-1 py-1.5 text-xs font-black rounded-lg transition-all duration-200",
                                     usageType === mode 
                                         ? "bg-background text-foreground shadow-sm" 
                                         : "text-muted-foreground hover:text-foreground"
                                 )}
                             >
-                                {mode === 'part' ? t('part') : mode === 'service' ? t('service') : "نقل عهدة"}
+                                {mode === 'part' ? "قطعة غيار" : mode === 'service' ? "خدمة / مصنعية" : "نقل عهدة"}
                             </button>
                         ))}
                     </div>
 
                     {usageType === 'transfer' ? (
-                        <div className="space-y-5 animate-in fade-in slide-in-from-top-4">
-                            <div className="bg-emerald-500/5 border border-emerald-500/20 p-4 rounded-2xl">
-                                <p className="text-xs text-emerald-400 font-bold leading-relaxed mb-4">
-                                    <AlertTriangle className="w-3 h-3 inline ml-1.5 mb-1" />
-                                    سيتم نقل الكمية المحددة من المخزن الرئيسي إلى مخزن الفني مباشرة، ثم يمكنك إضافتها للتذكرة.
+                        <div className="space-y-2.5 animate-in fade-in slide-in-from-top-2">
+                            <div className="bg-emerald-500/10 border border-emerald-500/20 p-2 rounded-xl">
+                                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold leading-relaxed">
+                                    <AlertTriangle className="w-3 h-3 inline ml-1 mb-0.5" />
+                                    نقل فوري من المخزن الرئيسي إلى مخزن الفني لإضافتها للتذكرة.
                                 </p>
-                                <div className="space-y-4">
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-black text-zinc-500 mr-2">ابحث عن منتج في المخزن الرئيسي</Label>
-                                        <SearchableSelect
-                                            options={products.map(p => ({
-                                                label: `${p.name} (متوفر: ${p.stock})`,
-                                                value: p.id
-                                            }))}
-                                            value={selectedProductId}
-                                            onChange={(val) => {
-                                                setSelectedProductId(val);
-                                                // Clear search when selected to avoid loops, but keep it if we want to filter more?
-                                                // For now, simple selection is enough.
-                                            }}
-                                            onSearch={(query) => setSearchQuery(query)}
-                                            placeholder="اختر القطعة..."
-                                        />
-                                    </div>
-                                    <div className="grid grid-cols-1 gap-4">
-                                        <div className="space-y-2">
-                                            <Label className="text-xs font-black text-muted-foreground mr-2">الكمية المنقولة</Label>
-                                            <Input
-                                                type="number"
-                                                min={1}
-                                                className="bg-muted/30 border-input text-foreground h-14 rounded-xl text-center text-lg font-black focus:border-primary transition-all font-mono"
-                                                value={quantity}
-                                                onChange={e => setQuantity(Number(e.target.value))}
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label className="text-xs font-black text-muted-foreground mr-2">تسعير النقل للمهندس</Label>
-                                            <div className="grid grid-cols-2 gap-2 bg-muted/40 p-2 rounded-2xl border border-border">
-                                                <button
-                                                    onClick={() => setTransferPriceChoice("COST")}
-                                                    className={cn("py-3 rounded-xl border transition-all text-sm font-black", transferPriceChoice === "COST" ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted font-bold")}
-                                                >
-                                                    بسعر التكلفة {selectedProduct ? `(${formatCurrencyCtx(selectedProduct.costPrice)})` : ''}
-                                                </button>
-                                                <button
-                                                    onClick={() => setTransferPriceChoice("SELL_1")}
-                                                    className={cn("py-3 rounded-xl border transition-all text-sm font-black", transferPriceChoice === "SELL_1" ? "bg-cyan-500/15 border-cyan-500/50 text-cyan-700 dark:text-cyan-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted font-bold")}
-                                                >
-                                                    بالسعر 1 {selectedProduct ? `(${formatCurrencyCtx(selectedProduct.sellPrice)})` : ''}
-                                                </button>
-                                            </div>
-                                        </div>
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-[10px] font-black text-muted-foreground mr-1">ابحث عن منتج بالمخزن الرئيسي</Label>
+                                <SearchableSelect
+                                    options={products.map(p => ({
+                                        label: `${p.name} (متوفر: ${p.stock})`,
+                                        value: p.id
+                                    }))}
+                                    value={selectedProductId}
+                                    onChange={(val) => setSelectedProductId(val)}
+                                    onSearch={(query) => setSearchQuery(query)}
+                                    placeholder="اختر القطعة..."
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                    <Label className="text-[10px] font-black text-muted-foreground mr-1">الكمية المنقولة</Label>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        className="bg-muted/30 border-input text-foreground h-8 rounded-lg text-center text-sm font-black font-mono"
+                                        value={quantity}
+                                        onChange={e => setQuantity(Number(e.target.value))}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-[10px] font-black text-muted-foreground mr-1">تسعير النقل للفني</Label>
+                                    <div className="grid grid-cols-2 gap-1 bg-muted/40 p-0.5 rounded-lg border border-border">
+                                        <button
+                                            onClick={() => setTransferPriceChoice("COST")}
+                                            className={cn("py-1 rounded-md border text-[10px] font-bold transition-all", transferPriceChoice === "COST" ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-600 dark:text-emerald-400" : "border-transparent text-muted-foreground")}
+                                        >
+                                            التكلفة
+                                        </button>
+                                        <button
+                                            onClick={() => setTransferPriceChoice("SELL_1")}
+                                            className={cn("py-1 rounded-md border text-[10px] font-bold transition-all", transferPriceChoice === "SELL_1" ? "bg-cyan-500/15 border-cyan-500/50 text-cyan-700 dark:text-cyan-400" : "border-transparent text-muted-foreground")}
+                                        >
+                                            السعر 1
+                                        </button>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     ) : usageType === 'part' ? (
-                        <div className="space-y-5 animate-in fade-in slide-in-from-right-4">
-                            <div className="space-y-2">
-                                <Label className="text-xs font-black text-zinc-500 mr-2">{t('selectProduct')}</Label>
+                        <div className="space-y-2.5 animate-in fade-in slide-in-from-right-2">
+                            <div className="space-y-1">
+                                <Label className="text-[10px] font-black text-muted-foreground mr-1">اختيار القطعة / الصنف</Label>
                                 <SearchableSelect
                                     options={products.map(p => ({
                                         label: `${p.name} (المخزن: ${p.stock}) ${p.sku ? `[${p.sku}]` : ''}`,
@@ -596,22 +593,22 @@ export default function TicketPartsManager({
                                     value={selectedProductId}
                                     onChange={(val) => setSelectedProductId(val)}
                                     onSearch={(query) => setSearchQuery(query)}
-                                    placeholder={t('searchPlaceholder')}
+                                    placeholder="ابحث بالاسم أو الباركود..."
                                 />
                                 {selectedProduct && (
-                                    <div className="flex justify-between items-center px-1 mt-1 text-[10px] uppercase tracking-widest font-black">
+                                    <div className="flex justify-between items-center px-1 mt-0.5 text-[9px] font-black">
                                         <span className={selectedProduct.stock > 0 ? "text-emerald-500" : "text-red-500"}>
-                                            {t('stockInfo', { count: selectedProduct.stock })}
+                                            المخزون المتوفر: {selectedProduct.stock}
                                         </span>
-                                        <span className="text-zinc-600">SKU: {selectedProduct.sku || '-'}</span>
+                                        <span className="text-muted-foreground">SKU: {selectedProduct.sku || '-'}</span>
                                     </div>
                                 )}
                             </div>
 
                             {selectedProduct && (
-                                <div className="space-y-2">
-                                    <Label className="text-xs font-black text-muted-foreground mr-2">{t('priceTier')}</Label>
-                                    <div className="grid grid-cols-3 gap-2 bg-muted/40 p-2 rounded-2xl border border-border">
+                                <div className="space-y-1">
+                                    <Label className="text-[10px] font-black text-muted-foreground mr-1">فئة السعر للعميل</Label>
+                                    <div className="grid grid-cols-3 gap-1.5 bg-muted/40 p-1 rounded-xl border border-border">
                                         {(['A', 'B', 'C'] as const).map((tier) => {
                                             const price = tier === 'A' ? Number(selectedProduct.sellPrice) :
                                                          tier === 'B' ? Number(selectedProduct.sellPrice2 || selectedProduct.sellPrice) :
@@ -624,16 +621,16 @@ export default function TicketPartsManager({
                                                     key={tier}
                                                     onClick={() => setSelectedPriceTier(tier)}
                                                     className={cn(
-                                                        "flex flex-col items-center justify-center py-3 rounded-xl border transition-all",
+                                                        "flex flex-col items-center justify-center py-1.5 rounded-lg border transition-all",
                                                         isSelected 
-                                                            ? "bg-primary/10 border-primary/50 text-primary shadow-sm" 
+                                                            ? "bg-primary/15 border-primary text-primary shadow-sm" 
                                                             : "bg-transparent border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/70"
                                                     )}
                                                 >
-                                                    <span className="text-[9px] font-black uppercase tracking-[0.2em] mb-1 opacity-60">
-                                                        {tier === 'A' ? 'S' : tier === 'B' ? 'M' : 'L'} Tier
+                                                    <span className="text-[8px] font-black uppercase tracking-wider opacity-70">
+                                                        {tier === 'A' ? 'S' : tier === 'B' ? 'M' : 'L'} TIER
                                                     </span>
-                                                    <span className="text-sm font-black tabular-nums">{formatCurrencyCtx(Number(price))}</span>
+                                                    <span className="text-xs font-black tabular-nums">{formatCurrencyCtx(Number(price))}</span>
                                                 </button>
                                             );
                                         })}
@@ -642,54 +639,54 @@ export default function TicketPartsManager({
                             )}
 
                             {selectedProduct && (
-                                <div className="space-y-2 mt-4 pt-4 border-t border-border/50">
-                                    <Label className="text-xs font-black text-muted-foreground mr-2">تكلفة النقل على المهندس (العهدة)</Label>
-                                    <div className="grid grid-cols-2 gap-2 bg-muted/40 p-2 rounded-2xl border border-border">
+                                <div className="space-y-1 pt-1 border-t border-border/50">
+                                    <Label className="text-[10px] font-black text-muted-foreground mr-1">تكلفة النقل على المهندس (العهدة)</Label>
+                                    <div className="grid grid-cols-2 gap-1.5 bg-muted/40 p-1 rounded-xl border border-border">
                                         <button
                                             onClick={() => setTransferPriceChoice("COST")}
-                                            className={cn("py-3 rounded-xl border transition-all text-sm font-black flex flex-col items-center justify-center", transferPriceChoice === "COST" ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted font-bold")}
+                                            className={cn("py-1.5 rounded-lg border transition-all text-xs font-black flex items-center justify-center gap-1", transferPriceChoice === "COST" ? "bg-emerald-500/15 border-emerald-500 text-emerald-600 dark:text-emerald-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted")}
                                         >
-                                            <span className="text-[10px] mb-1 opacity-60">سعر التكلفة الأساسي</span>
-                                            {formatCurrencyCtx(selectedProduct.costPrice)}
+                                            <span className="text-[9px] opacity-70">سعر التكلفة:</span>
+                                            <span>{formatCurrencyCtx(selectedProduct.costPrice)}</span>
                                         </button>
                                         <button
                                             onClick={() => setTransferPriceChoice("SELL_1")}
-                                            className={cn("py-3 rounded-xl border transition-all text-sm font-black flex flex-col items-center justify-center", transferPriceChoice === "SELL_1" ? "bg-cyan-500/15 border-cyan-500/50 text-cyan-700 dark:text-cyan-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted font-bold")}
+                                            className={cn("py-1.5 rounded-lg border transition-all text-xs font-black flex items-center justify-center gap-1", transferPriceChoice === "SELL_1" ? "bg-cyan-500/15 border-cyan-500 text-cyan-700 dark:text-cyan-400 shadow-sm" : "border-transparent text-muted-foreground hover:bg-muted")}
                                         >
-                                            <span className="text-[10px] mb-1 opacity-60">السعر 1</span>
-                                            {formatCurrencyCtx(selectedProduct.sellPrice)}
+                                            <span className="text-[9px] opacity-70">السعر 1:</span>
+                                            <span>{formatCurrencyCtx(selectedProduct.sellPrice)}</span>
                                         </button>
                                     </div>
                                 </div>
                             )}
 
-                            <div className="space-y-2">
-                                <Label className="text-xs font-black text-muted-foreground mr-2">{t('quantity')}</Label>
+                            <div className="space-y-1">
+                                <Label className="text-[10px] font-black text-muted-foreground mr-1">الكمية</Label>
                                 <Input
                                     type="number"
                                     min={1}
-                                    className="bg-muted/30 border-input text-foreground h-14 rounded-xl text-center text-lg font-black focus:border-primary transition-all font-mono"
+                                    className="bg-muted/30 border-input text-foreground h-8 rounded-lg text-center text-sm font-black font-mono focus:border-primary transition-all"
                                     value={quantity}
                                     onChange={e => setQuantity(Number(e.target.value))}
                                 />
                             </div>
                         </div>
                     ) : (
-                        <div className="space-y-5 animate-in fade-in slide-in-from-left-4">
-                            <div className="space-y-2">
-                                <Label className="text-xs font-black text-muted-foreground mr-2">{t('customName')}</Label>
+                        <div className="space-y-2.5 animate-in fade-in slide-in-from-left-2">
+                            <div className="space-y-1">
+                                <Label className="text-[10px] font-black text-muted-foreground mr-1">اسم الخدمة / العملية</Label>
                                 <Input
-                                    className="bg-muted/30 border-input text-foreground h-14 rounded-xl px-5 text-sm font-bold focus:border-primary transition-all"
-                                    placeholder={t('customName')}
+                                    className="bg-muted/30 border-input text-foreground h-8 rounded-lg px-3 text-xs font-bold focus:border-primary transition-all"
+                                    placeholder="مثال: لحام مسار ماذربورد"
                                     value={serviceName}
                                     onChange={e => setServiceName(e.target.value)}
                                 />
                             </div>
-                            <div className="space-y-2">
-                                <Label className="text-xs font-black text-muted-foreground mr-2">{t('customPrice')}</Label>
+                            <div className="space-y-1">
+                                <Label className="text-[10px] font-black text-muted-foreground mr-1">سعر الخدمة (EGP)</Label>
                                 <Input
                                     type="number"
-                                    className="bg-muted/30 border-input text-foreground h-14 rounded-xl text-center text-lg font-black focus:border-primary transition-all font-mono"
+                                    className="bg-muted/30 border-input text-foreground h-8 rounded-lg text-center text-sm font-black font-mono focus:border-primary transition-all"
                                     value={servicePrice}
                                     onChange={e => setServicePrice(Number(e.target.value))}
                                 />
@@ -697,19 +694,19 @@ export default function TicketPartsManager({
                         </div>
                     )}
 
-                    <div className="pt-8 flex flex-row-reverse gap-4">
+                    <div className="pt-2 flex flex-row-reverse gap-2">
                         <Button 
                             onClick={handleAdd} 
                             disabled={isLoading}
                             className={cn(
-                                "flex-1 h-16 font-black text-lg rounded-[24px] shadow-2xl transition-all active:scale-95",
+                                "flex-1 h-10 font-black text-xs rounded-xl shadow-md transition-all active:scale-95",
                                 usageType === 'transfer' ? "bg-emerald-500 text-black hover:bg-emerald-400 shadow-emerald-500/20" : "bg-primary text-primary-foreground hover:bg-primary/90"
                             )}
                         >
-                            {isLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : 
+                            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 
                              usageType === 'transfer' ? "تأكيد النقل للمهندس" : "إضافة البند للقائمة"}
                         </Button>
-                        <Button variant="ghost" onClick={() => setIsAddingPart(false)} className="px-10 h-16 text-muted-foreground hover:text-foreground hover:bg-muted rounded-2xl font-bold">إلغاء</Button>
+                        <Button variant="ghost" onClick={handleCloseModal} className="px-5 h-10 text-xs text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl font-bold">إلغاء</Button>
                     </div>
                 </div>
             </GlassModal>

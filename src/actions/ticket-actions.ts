@@ -18,6 +18,7 @@ import { getBranchFilter } from "@/lib/data-filters";
 import { TicketStatus } from "@/lib/constants";
 import { handleReturnedPartStock, decrementWarehouseStock, incrementWarehouseStock } from "@/lib/stock-helpers";
 import { serialize } from "@/lib/serialization";
+import { deductTreasuryBalance } from "@/lib/treasury-guard";
 
 
 import { getFormattedTicketNumber } from "@/lib/id-generator";
@@ -224,7 +225,7 @@ export const getTicketDetails = secureAction(async (idOrBarcode: string) => {
             deletedAt: null
         },
         include: {
-            technician: true,
+            technician: { include: { commissionRule: true } },
             currentBranch: true,
             customer: true,
             clientUser: true,
@@ -1032,9 +1033,13 @@ export const rejectTicket = secureAction(async (data: {
                     }
                 });
 
-                await tx.treasury.update({
-                    where: { id: defaultTreasuryId },
-                    data: { balance: { decrement: amountPaidDec } }
+                const canGoNegative = hasPermission(user?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                await deductTreasuryBalance({
+                    tx,
+                    treasuryId: defaultTreasuryId,
+                    amount: amountPaidDec,
+                    actionDescription: `استرداد عربون تذكرة #${existingTicket.barcode}`,
+                    allowOverdraftOverride: canGoNegative ? true : undefined,
                 });
             } else if (refundMethod === 'ACCOUNT' && existingTicket.customerId) {
                 await tx.customer.update({
@@ -1308,9 +1313,13 @@ export const refundTicket = secureAction(async (data: {
                     }
                 });
 
-                await tx.treasury.update({
-                    where: { id: treasury.id },
-                    data: { balance: { decrement: amount } }
+                const canGoNegative = hasPermission(user?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                await deductTreasuryBalance({
+                    tx,
+                    treasuryId: treasury.id,
+                    amount: amount,
+                    actionDescription: `استرجاع تذكرة #${ticket.barcode}`,
+                    allowOverdraftOverride: canGoNegative ? true : undefined,
                 });
             }
         }
@@ -1442,9 +1451,13 @@ export const softDeleteTicket = secureAction(async (data: {
                         }
                     });
 
-                    await tx.treasury.update({
-                        where: { id: defaultTreasury.id },
-                        data: { balance: { decrement: amountToRefund } }
+                    const canGoNegative = hasPermission(user?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                    await deductTreasuryBalance({
+                        tx,
+                        treasuryId: defaultTreasury.id,
+                        amount: amountToRefund,
+                        actionDescription: `حذف واسترجاع تذكرة #${ticket.barcode}`,
+                        allowOverdraftOverride: canGoNegative ? true : undefined,
                     });
                 }
             } else if (ticket.customerId) {
@@ -2008,6 +2021,12 @@ export const addTicketPart = secureAction(async (data: {
     if (ticket.technicianId) {
         const commission = calculateCommission(netProfit, Number(ticket.commissionRate || 0));
         updateData.commissionAmount = new Decimal(commission);
+    }
+
+    // Auto-advance status to IN_PROGRESS if ticket was in initial setup stages and has assigned technician
+    if (['NEW', 'DIAGNOSING', 'AT_CENTER'].includes(ticket.status) && ticket.technicianId) {
+        updateData.status = TicketStatus.IN_PROGRESS;
+        updateData.previousStatus = ticket.status;
     }
 
     await prisma.ticket.update({
@@ -2881,11 +2900,21 @@ export const processTicketPayment = secureAction(async (data: {
             });
 
             if (defaultTreasuryId) {
-                // Use increment with signed value to correctly handle both payments and refunds
-                await tx.treasury.update({
-                    where: { id: defaultTreasuryId },
-                    data: { balance: { increment: effectiveAmount } }
-                });
+                if (effectiveAmount.isNegative()) {
+                    const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                    await deductTreasuryBalance({
+                        tx,
+                        treasuryId: defaultTreasuryId,
+                        amount: effectiveAmount.abs(),
+                        actionDescription: `استرجاع تذكرة #${ticket.barcode}`,
+                        allowOverdraftOverride: canGoNegative ? true : undefined,
+                    });
+                } else {
+                    await tx.treasury.update({
+                        where: { id: defaultTreasuryId },
+                        data: { balance: { increment: effectiveAmount } }
+                    });
+                }
             }
 
             // Unified Accounting Integration (Fix B17 & B18)
@@ -3102,9 +3131,13 @@ export const refundTicketExcessToCustomer = secureAction(async (data: {
             });
 
             // Decrement treasury balance
-            await tx.treasury.update({
-                where: { id: defaultTreasuryId },
-                data: { balance: { decrement: refundAmount } }
+            const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+            await deductTreasuryBalance({
+                tx,
+                treasuryId: defaultTreasuryId,
+                amount: refundAmount,
+                actionDescription: `صرف متبقي تذكرة #${ticket.barcode}`,
+                allowOverdraftOverride: canGoNegative ? true : undefined,
             });
         } else if (method === 'ACCOUNT' && ticket.customerId) {
             // Customer credit balance
@@ -3826,16 +3859,13 @@ export const fullTicketReturn = secureAction(async (data: {
                 });
 
                 if (treasuryId) {
-                    const treasury = await tx.treasury.findUnique({ where: { id: treasuryId } });
-                    if (treasury && new Decimal(treasury.balance).lt(amountToRefund)) {
-                        const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
-                        if (!canGoNegative) {
-                            throw new Error(`رصيد الخزنة غير كافٍ (${Number(treasury.balance)}). ولا تملك صلاحية السحب بالسالب لإتمام المرتجع.`);
-                        }
-                    }
-                    await tx.treasury.update({
-                        where: { id: treasuryId },
-                        data: { balance: { decrement: new Decimal(amountToRefund) } }
+                    const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                    await deductTreasuryBalance({
+                        tx,
+                        treasuryId: treasuryId,
+                        amount: amountToRefund,
+                        actionDescription: `مرتجع كامل لتذكرة #${ticket.barcode}`,
+                        allowOverdraftOverride: canGoNegative ? true : undefined,
                     });
                 }
             }
@@ -4120,45 +4150,57 @@ export const partialRefundTicket = secureAction(async (data: {
         let totalRefundAmount = new Decimal(0);
         let totalCogsReversal = new Decimal(0);
         let totalSpoilageAmount = new Decimal(0);
+        let laborRefundAmount = new Decimal(0);
 
         for (const returnItem of items) {
-            const part = ticket.parts.find(p => p.id === returnItem.itemId);
-            if (!part) throw new Error(`Part ${returnItem.itemId} not found in ticket`);
-
-            const available = new Decimal(part.quantity).minus(part.refundedQty || 0);
-            if (new Decimal(returnItem.quantity).gt(available)) {
-                throw new Error(`Cannot refund more than available for ${part.name || 'part'}`);
-            }
-
-            // 1. Update TicketPart counter
-            await tx.ticketPart.update({
-                where: { id: part.id },
-                data: {
-                    refundedQty: { increment: returnItem.quantity },
-                    status: available.equals(returnItem.quantity) ? 'REFUNDED' : part.status
+            if (returnItem.itemId.startsWith('SVC-') || returnItem.itemId === 'SERVICE') {
+                // Labor / Service Refund
+                const laborPrice = new Decimal(ticket.repairPrice || 0);
+                if (laborPrice.gt(0)) {
+                    const refundAmt = laborPrice.times(returnItem.quantity);
+                    totalRefundAmount = totalRefundAmount.plus(refundAmt);
+                    laborRefundAmount = laborRefundAmount.plus(refundAmt);
                 }
-            });
+            } else {
+                // Physical Part Refund
+                const part = ticket.parts.find(p => p.id === returnItem.itemId);
+                if (!part) throw new Error(`Part ${returnItem.itemId} not found in ticket`);
 
-            // 2. Handle Stock Reversal
-            if (part.productId) {
-                await handleReturnedPartStock(tx, {
-                    productId: part.productId,
-                    warehouseId: part.warehouseId,
-                    quantity: new Decimal(returnItem.quantity).toNumber(),
-                    isDamaged: returnItem.isDamaged,
-                    reason: `Partial Refund: Ticket #${ticket.barcode}`,
-                    performedById: currentUser.id
+                const available = new Decimal(part.quantity).minus(part.refundedQty || 0);
+                if (new Decimal(returnItem.quantity).gt(available)) {
+                    throw new Error(`Cannot refund more than available for ${part.name || 'part'}`);
+                }
+
+                // 1. Update TicketPart counter
+                await tx.ticketPart.update({
+                    where: { id: part.id },
+                    data: {
+                        refundedQty: { increment: returnItem.quantity },
+                        status: available.equals(returnItem.quantity) ? 'REFUNDED' : part.status
+                    }
                 });
-                
-                const itemCost = new Decimal(part.cost).times(returnItem.quantity);
-                if (returnItem.isDamaged) {
-                    totalSpoilageAmount = totalSpoilageAmount.plus(itemCost);
-                } else {
-                    totalCogsReversal = totalCogsReversal.plus(itemCost);
-                }
-            }
 
-            totalRefundAmount = totalRefundAmount.plus(new Decimal(part.price).times(returnItem.quantity));
+                // 2. Handle Stock Reversal
+                if (part.productId) {
+                    await handleReturnedPartStock(tx, {
+                        productId: part.productId,
+                        warehouseId: part.warehouseId,
+                        quantity: new Decimal(returnItem.quantity).toNumber(),
+                        isDamaged: returnItem.isDamaged,
+                        reason: `Partial Refund: Ticket #${ticket.barcode}`,
+                        performedById: currentUser.id
+                    });
+                    
+                    const itemCost = new Decimal(part.cost).times(returnItem.quantity);
+                    if (returnItem.isDamaged) {
+                        totalSpoilageAmount = totalSpoilageAmount.plus(itemCost);
+                    } else {
+                        totalCogsReversal = totalCogsReversal.plus(itemCost);
+                    }
+                }
+
+                totalRefundAmount = totalRefundAmount.plus(new Decimal(part.price).times(returnItem.quantity));
+            }
         }
 
         // 3. Create Refund Payment Record
@@ -4174,6 +4216,15 @@ export const partialRefundTicket = secureAction(async (data: {
                     recordedBy: currentUser.name || "System"
                 }
             });
+
+            if (refundMethod === 'STORE_CREDIT' && ticket.customerId) {
+                await tx.customer.update({
+                    where: { id: ticket.customerId },
+                    data: {
+                        balance: { increment: totalRefundAmount }
+                    }
+                });
+            }
 
             // 4. Recalculate Financial Snapshot — Profit-First Loss Absorption
             const newRepairPrice = new Decimal(ticket.repairPrice).minus(totalRefundAmount);
@@ -4229,9 +4280,13 @@ export const partialRefundTicket = secureAction(async (data: {
                 }
 
                 if (treasuryId) {
-                    await tx.treasury.update({
-                        where: { id: treasuryId },
-                        data: { balance: { decrement: totalRefundAmount } }
+                    const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                    await deductTreasuryBalance({
+                        tx,
+                        treasuryId: treasuryId,
+                        amount: totalRefundAmount,
+                        actionDescription: `مرتجع جزئي لتذكرة #${ticket.barcode}`,
+                        allowOverdraftOverride: canGoNegative ? true : undefined,
                     });
                 }
 
@@ -4382,9 +4437,13 @@ export const fullRefundTicket = secureAction(async (data: {
             });
 
             if (treasury) {
-                await tx.treasury.update({
-                    where: { id: treasury.id },
-                    data: { balance: { decrement: totalRefundAmount } }
+                const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                await deductTreasuryBalance({
+                    tx,
+                    treasuryId: treasury.id,
+                    amount: totalRefundAmount,
+                    actionDescription: `مرتجع كلي لتذكرة #${ticket.barcode}`,
+                    allowOverdraftOverride: canGoNegative ? true : undefined,
                 });
 
                 await tx.transaction.create({

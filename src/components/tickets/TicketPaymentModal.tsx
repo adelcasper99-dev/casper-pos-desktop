@@ -10,19 +10,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-    Plus, CreditCard, Banknote, ShieldAlert, Printer,
-    CheckCircle2, UserPlus, Search, Loader2, ArrowRightLeft,
-    Smartphone, UserCircle, XCircle, CheckCircle, ShieldCheck, LayoutDashboard
+    CreditCard, Banknote, ShieldAlert, Printer,
+    ArrowRightLeft, Smartphone, UserCircle, ShieldCheck,
+    LayoutDashboard, Loader2, Sparkles
 } from "lucide-react";
 import { addDays } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import GlassModal from "@/components/ui/GlassModal";
 import { toast } from "sonner";
 import { useCSRF } from "@/contexts/CSRFContext";
-import { processTicketPayment, getOrCreateCustomer, updateTicketStatus } from "@/actions/ticket-actions";
+import { processTicketPayment, getOrCreateCustomer } from "@/actions/ticket-actions";
 import { getEffectiveStoreSettings } from "@/actions/settings";
 import TicketPrintTemplate from "./TicketPrintTemplate";
-import { renderToStaticMarkup } from "react-dom/server";
 import { printService } from "@/lib/print-service";
 import { generateEngineerReceiptHTML, generatePaidTicketReceiptHTML } from "@/lib/ticket-print-helpers";
 import { SearchableSelect } from "@/components/ui/searchable-select";
@@ -39,9 +38,7 @@ interface TicketPaymentModalProps {
 }
 
 export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess }: TicketPaymentModalProps) {
-    const t = useTranslations("Tickets.details.payment");
     const router = useRouter();
-    const commonT = useTranslations("Common");
     const { token: csrfToken } = useCSRF();
     const [isLoading, setIsLoading] = useState(false);
     const [settings, setSettings] = useState<any>(null);
@@ -52,7 +49,6 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
     const [paymentMethod, setPaymentMethod] = useState("CASH");
     const [paymentType, setPaymentType] = useState<'DEPOSIT' | 'PAYMENT'>('PAYMENT');
     const [reference, setReference] = useState("");
-    const [printReceipt, setPrintReceipt] = useState(true);
 
     // Warranty State
     const [warrantyEnabled, setWarrantyEnabled] = useState(true);
@@ -69,10 +65,10 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
     const [newCustomerName, setNewCustomerName] = useState("");
     const [newCustomerPhone, setNewCustomerPhone] = useState("");
 
-    const isWarrantyReturn = !!ticket.parentTicket;
-    const inheritedCredit = isWarrantyReturn ? Number(ticket.parentTicket.amountPaid || 0) : 0;
-    const currentPaid = Number(ticket.amountPaid || 0);
-    const totalNewPrice = Number(ticket.repairPrice || 0);
+    const isWarrantyReturn = !!ticket?.parentTicket;
+    const inheritedCredit = isWarrantyReturn ? Number(ticket.parentTicket?.amountPaid || 0) : 0;
+    const currentPaid = Number(ticket?.amountPaid || 0);
+    const totalNewPrice = Number(ticket?.repairPrice || 0);
     const balanceDue = Math.max(0, totalNewPrice - currentPaid);
 
     // Delta for reconciliation (unifies warranty and regular overpayments)
@@ -89,7 +85,7 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
         };
         if (isOpen) {
             loadSettings();
-            const isUnfinishedTicket = !['COMPLETED', 'READY_AT_BRANCH', 'DELIVERED', 'PAID_DELIVERED'].includes(ticket.status);
+            const isUnfinishedTicket = !['COMPLETED', 'READY_AT_BRANCH', 'DELIVERED', 'PAID_DELIVERED'].includes(ticket?.status);
             setAmount(isWarrantyReturn || netDelta < 0 ? netDelta.toString() : balanceDue.toString());
             setPaymentMethod("CASH");
             setPaymentType(isUnfinishedTicket ? "DEPOSIT" : "PAYMENT");
@@ -104,20 +100,18 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
             setIsCreatingCustomer(false);
 
             // Auto-link customer if ticket has customerId
-            if (ticket.customerId) {
-                // Find existing customer in our search
+            if (ticket?.customerId) {
                 handleSearchCustomers(ticket.customerPhone || ticket.customerName).then(results => {
                     const match = results?.find((c: any) => c.id === ticket.customerId || c.phone === ticket.customerPhone);
                     if (match) setSelectedCustomer(match);
                 });
             }
 
-            // 🛡️ [NEW] Enforce ACCOUNT method for refunds (netDelta < 0)
             if (netDelta < 0) {
                 setPaymentMethod("ACCOUNT");
             }
         }
-    }, [isOpen, ticket, netDelta]); // Added netDelta dependency
+    }, [isOpen, ticket, netDelta]);
 
     useEffect(() => {
         if (debouncedQuery.length >= 2) {
@@ -149,7 +143,7 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
             } else {
                 setEmployeeData(null);
             }
-        } catch (e) {
+        } catch {
             setEmployeeData(null);
         }
     };
@@ -159,39 +153,36 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
     const effectivePayment = Math.min(paymentAmountNum, balanceDue);
 
     const handleProcessPayment = async () => {
-        // For warranty returns, 0 is valid (even swap) and negative is valid (refund)
         if (!isWarrantyReturn && paymentAmountNum <= 0 && paymentMethod !== "ACCOUNT") {
-            toast.error(t('validAmountError') || "Please enter a valid amount");
+            toast.error("يرجى إدخال مبلغ صحيح");
             return;
         }
 
         setIsLoading(true);
 
-        // 1. Ensure Customer exists for ACCOUNT payment if no employee deduction
-        let finalCustomerId = selectedCustomer?.id || ticket.customerId;
+        let finalCustomerId = selectedCustomer?.id || ticket?.customerId;
 
         if (paymentMethod === "ACCOUNT" && !employeeData) {
             if (isCreatingCustomer || !finalCustomerId) {
                 const custRes = await getOrCreateCustomer({
-                    name: newCustomerName || ticket.customerName,
-                    phone: newCustomerPhone || ticket.customerPhone,
+                    name: newCustomerName || ticket?.customerName,
+                    phone: newCustomerPhone || ticket?.customerPhone,
                     csrfToken: csrfToken ?? undefined
                 });
                 if (custRes.success) {
                     finalCustomerId = (custRes as any).id;
                 } else {
-                    toast.error(t('linkCustomerError') || "Failed to link customer for account payment");
+                    toast.error("تعذر ربط العميل للحساب الآجل");
                     setIsLoading(false);
                     return;
                 }
             } else if (!finalCustomerId) {
-                toast.error("Customer selection is required for account payment");
+                toast.error("يرجى اختيار العميل لحساب الآجل");
                 setIsLoading(false);
                 return;
             }
         }
 
-        // 2. Process Server Action
         const res = await processTicketPayment({
             ticketId: ticket.id,
             amount: isWarrantyReturn ? paymentAmountNum : effectivePayment,
@@ -207,28 +198,21 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
         });
 
         if (res.success) {
-            // ... (previous logic)
-            toast.success(t('paymentSuccess'));
+            toast.success("تم تسجيل الدفع بنجاح");
             setSuccess(true);
             onSuccess?.();
             router.refresh();
 
-            // 🏷️ [AUTO-PRINT] If autoPrintTicket is explicitly enabled, trigger silent print
-            // Only auto-print when explicitly enabled to avoid unexpected behavior
-            // 🛡️ FIX: Wait for settings to load and check loading state
             const isSpeedPrintEnabled = printService.getRegistry()?.enableSpeedPrint !== false;
 
             if (!settingsLoading && settings && settings.autoPrintTicket === true && isSpeedPrintEnabled) {
-                // We use a small delay to ensure the success state is rendered or the state is ready
                 setTimeout(() => {
                     handlePrint(true);
-                    // Close slightly later after print job is sent
                     setTimeout(() => {
                         onClose();
                     }, 1200);
                 }, 500);
             } else if (settingsLoading) {
-                // 🛡️ Settings still loading - wait for them to load then auto-print
                 const checkSettingsAndPrint = () => {
                     if (settings && settings.autoPrintTicket === true && printService.getRegistry()?.enableSpeedPrint !== false) {
                         handlePrint(true);
@@ -237,22 +221,19 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                         onClose();
                     }
                 };
-                // Wait a bit and check again
                 setTimeout(checkSettingsAndPrint, 1000);
             } else {
-                // Auto close after small delay to let user see success state/toast
                 setTimeout(() => {
                     onClose();
                 }, 800);
             }
         } else {
-            toast.error((res as any).error || t('paymentError'));
+            toast.error((res as any).error || "حدث خطأ أثناء تسجيل الدفعة");
         }
         setIsLoading(false);
     };
 
     const handlePrint = async (isAutoPrint = false) => {
-        // If settings not loaded, try to load them or use defaults
         let currentSettings = settings;
         if (!currentSettings) {
             try {
@@ -272,7 +253,6 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
         }
 
         try {
-            // Prepare the Updated Ticket Object for Printing
             const updatedTicket = {
                 ...ticket,
                 amountPaid: (Number(ticket.amountPaid) || 0) + effectivePayment,
@@ -282,31 +262,29 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
             };
 
             const translations = {
-                customerInfo: t('customerInfo'),
-                name: t('name'),
-                phone: t('phone'),
-                deviceDetails: t('deviceDetails'),
-                device: t('device'),
-                detail: t('detail'),
-                conditionHeader: t('conditionHeader'),
-                expectedTime: t('expectedTime'),
-                issueLabel: t('issueLabel'),
-                financialsHeader: t('financialsHeader'),
-                repairCost: t('repairCost'),
-                paid: t('paid'),
-                balanceDue: t('balanceDue'),
-                termsHeader: t('termsHeader'),
-                terms1: t('terms1'),
-                terms2: t('terms2'),
-                terms3: t('terms3'),
+                customerInfo: "بيانات العميل",
+                name: "الاسم",
+                phone: "الهاتف",
+                deviceDetails: "بيانات الجهاز",
+                device: "الجهاز",
+                detail: "التفاصيل",
+                conditionHeader: "حالة الجهاز",
+                expectedTime: "الوقت المتوقع",
+                issueLabel: "العطل",
+                financialsHeader: "البيانات المالية",
+                repairCost: "تكلفة الإصلاح",
+                paid: "المدفوع",
+                balanceDue: "المتبقي",
+                termsHeader: "الشروط والأحكام",
+                terms1: "المركز غير مسؤول عن الأجهزة المتروكة لأكثر من 30 يوم",
+                terms2: "الضمان يسري على قطع الغيار المستبدلة فقط",
+                terms3: "يُرجى إحضار هذا الإيصال عند الاستلام",
             };
 
-            // 🛡️ [NEW] Resolve Printer specifically for Thermal path
             const registry = printService.getRegistry();
             const targetPrinter = registry?.thermalPrinter || registry?.receiptPrinter || localStorage.getItem('printer_receipt') || '';
             const paperWidthMm = currentSettings?.paperSize === '58mm' ? 58 : 80;
 
-            // Prepare Warranty Data if enabled
             const warrantyData = (warrantyEnabled && paymentType === 'PAYMENT') ? {
                 warrantyDays,
                 warrantyExpiryDate
@@ -320,7 +298,6 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
 
             const htmlContent = generatePaidTicketReceiptHTML(finalTicketForPrint, currentSettings, translations);
 
-            // 🛡️ [FIX] Use HIGH PRECISION printThermal for the customer copy
             if (targetPrinter) {
                  await printService.printThermal(htmlContent, targetPrinter, paperWidthMm);
             } else {
@@ -330,26 +307,57 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                 });
             }
 
-            if (!isAutoPrint) toast.success("Print job sent successfully");
+            if (!isAutoPrint) toast.success("تم إرسال أمر الطباعة بنجاح");
 
         } catch (error) {
             console.error("Print Error:", error);
-            toast.error("Failed to print receipt");
+            toast.error("فشل إرسال أمر الطباعة");
         }
     };
+
+    // Calculate Parts Cost, Labor Pool, and Technician Distribution
+    const activeParts = (ticket?.parts as any[])?.filter(p => p.status !== 'REFUNDED' && !p.deletedAt) || [];
+    const partsBillingToTech = activeParts.reduce((sum: number, p: any) => {
+        const unitCost = Number(p.transferPrice ?? p.cost ?? p.baseCostPrice ?? p.product?.costPrice ?? 0);
+        return sum + (unitCost * (Number(p.quantity) || 1));
+    }, 0);
+    const effectivePartsCost = partsBillingToTech > 0 
+        ? partsBillingToTech 
+        : Number(ticket?.techBillingPrice || ticket?.partsCost || 0);
+
+    const laborPoolAmount = Number(ticket?.laborPoolAmount || 0) > 0 
+        ? Number(ticket.laborPoolAmount) 
+        : Math.max(0, totalNewPrice - effectivePartsCost);
+
+    const techShareAmount = (() => {
+        if (Number(ticket?.techCommissionAmount || 0) > 0) {
+            return Number(ticket.techCommissionAmount);
+        }
+        if (ticket?.technician?.commissionRule?.type === 'FIXED') {
+            return Number(ticket.technician.commissionRule.value || 0);
+        }
+        const effectiveRate = Number(
+            ticket?.commissionRate || 
+            (ticket?.technician?.commissionRule?.type === 'PERCENTAGE' ? ticket.technician.commissionRule.value : 0) ||
+            ticket?.technician?.commissionRate || 
+            0
+        );
+        return (laborPoolAmount * effectiveRate) / 100;
+    })();
+
+    const centerLaborProfit = Math.max(0, laborPoolAmount - techShareAmount);
 
     // Success State View
     if (success) {
         return (
-            <GlassModal isOpen={isOpen} onClose={onClose} title={t('paymentSuccess')} className="max-w-md">
-                <div className="flex flex-col items-center space-y-6 py-4">
-                    <div className="bg-white text-black w-[300px] shadow-2xl relative overflow-hidden transform rotate-1 border border-gray-200">
-                        {/* Zigzag decoration can be CSS based, keeping it simple here */}
-                        <div className="py-6 px-4">
+            <GlassModal isOpen={isOpen} onClose={onClose} title="تم تسجيل الدفع بنجاح" className="max-w-md">
+                <div className="flex flex-col items-center space-y-4 py-2">
+                    <div className="bg-white text-black w-[280px] shadow-2xl relative overflow-hidden rounded-lg border border-gray-200">
+                        <div className="py-4 px-3">
                             <TicketPrintTemplate
                                 ticket={{
                                     ...ticket,
-                                    amountPaid: (Number(ticket.amountPaid) || 0) + effectivePayment,
+                                    amountPaid: (Number(ticket?.amountPaid) || 0) + effectivePayment,
                                     lastPaymentAmount: effectivePayment,
                                     lastPaymentMethod: paymentMethod
                                 }}
@@ -359,13 +367,13 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 w-full">
+                    <div className="grid grid-cols-2 gap-2.5 w-full">
                         <Button
                             onClick={() => handlePrint()}
-                            className="bg-cyan-500 hover:bg-cyan-400 text-black font-bold shadow-[0_0_20px_rgba(6,182,212,0.3)]"
+                            className="bg-cyan-500 hover:bg-cyan-400 text-black font-bold h-10 shadow-[0_0_15px_rgba(6,182,212,0.3)]"
                         >
-                            <Printer className="w-4 h-4 mr-2" />
-                            {t('printReceipt')}
+                            <Printer className="w-4 h-4 ml-1.5" />
+                            طباعة الإيصال
                         </Button>
                         <Button
                             onClick={async () => {
@@ -374,393 +382,355 @@ export default function TicketPaymentModal({ isOpen, onClose, ticket, onSuccess 
                                 if (targetPrinter) {
                                     const engineerHtml = generateEngineerReceiptHTML({
                                         ...ticket,
-                                        amountPaid: (Number(ticket.amountPaid) || 0) + effectivePayment,
+                                        amountPaid: (Number(ticket?.amountPaid) || 0) + effectivePayment,
                                         lastPaymentAmount: effectivePayment,
                                         lastPaymentMethod: paymentMethod
                                     }, settings);
                                     await printService.printThermal(engineerHtml, targetPrinter, settings?.paperSize === '58mm' ? 58 : 80);
-                                    toast.success("Engineer copy sent");
+                                    toast.success("تم إرسال نسخة الفني للطباعة");
                                 }
                             }}
                             variant="outline"
-                            className="border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/10 font-bold"
+                            className="border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/10 font-bold h-10"
                         >
-                            <ShieldAlert className="w-4 h-4 mr-2" />
-                            نسخة المهندس
+                            <ShieldAlert className="w-4 h-4 ml-1.5" />
+                            إيصال الفني
                         </Button>
                     </div>
-                    <Button variant="ghost" onClick={onClose} className="w-full text-zinc-500 font-bold">
-                        {t('close')}
+                    <Button variant="ghost" onClick={onClose} className="w-full text-zinc-500 font-bold h-9">
+                        إغلاق
                     </Button>
                 </div>
             </GlassModal>
         );
     }
-return (
+
+    const isUnfinished = !['COMPLETED', 'READY_AT_BRANCH', 'DELIVERED', 'PAID_DELIVERED'].includes(ticket?.status);
+    const modalTitleText = isUnfinished ? "تسجيل دفعة مقدمة / عربون" : "سداد مستحقات التذكرة وتأكيد التسليم";
+
+    return (
         <GlassModal
             isOpen={isOpen}
             onClose={onClose}
-            title={!['COMPLETED', 'READY_AT_BRANCH', 'DELIVERED', 'PAID_DELIVERED'].includes(ticket.status) ? "تسجيل عربون / دفعة مقدمة" : (t('title') || "تسجيل دفعة")}
-            className="max-w-xl"
+            title={modalTitleText}
+            className="max-w-lg"
         >
-            <div className="space-y-5 py-4 overflow-y-auto max-h-[80vh] scrollbar-hide">
-                {/* Due Amount Highlight */}
-                <div className="p-4 bg-cyan-500/10 border border-cyan-500/20 rounded-xl text-center">
+            <div className="space-y-3 py-1">
+                {/* Due Amount Highlight Compact Card */}
+                <div className="p-3 bg-gradient-to-b from-cyan-500/15 to-cyan-500/5 border border-cyan-500/25 rounded-xl text-center shadow-inner">
                     {(isWarrantyReturn || currentPaid > 0 || netDelta < 0) ? (
-                        <div className="space-y-3">
-                            <div className="flex justify-between items-center text-xs">
-                                <span className="text-cyan-800 dark:text-zinc-400">{t('newTotalDue') || "New Repair Total"}</span>
-                                <span className="text-cyan-950 dark:text-white font-bold">{formatCurrency(totalNewPrice)}</span>
+                        <div className="space-y-1.5">
+                            <div className="grid grid-cols-2 gap-2 text-[11px]">
+                                <div className="flex justify-between items-center bg-black/20 px-2 py-1 rounded-md">
+                                    <span className="text-zinc-400">تكلفة الصيانة:</span>
+                                    <span className="text-white font-bold">{formatCurrency(totalNewPrice)}</span>
+                                </div>
+                                {currentPaid > 0 && (
+                                    <div className="flex justify-between items-center bg-black/20 px-2 py-1 rounded-md">
+                                        <span className="text-zinc-400">المدفوع مسبقاً:</span>
+                                        <span className="text-cyan-400 font-bold">{formatCurrency(currentPaid)}</span>
+                                    </div>
+                                )}
+                                {isWarrantyReturn && inheritedCredit > 0 && (
+                                    <div className="flex justify-between items-center bg-black/20 px-2 py-1 rounded-md col-span-2">
+                                        <span className="text-zinc-400">رصيد التذكرة السابقة:</span>
+                                        <span className="text-emerald-400 font-bold">{formatCurrency(inheritedCredit)}</span>
+                                    </div>
+                                )}
                             </div>
-                            {isWarrantyReturn && inheritedCredit > 0 && (
-                                <div className="flex justify-between items-center text-xs">
-                                    <span className="text-cyan-800 dark:text-zinc-400">{t('inheritedCredit') || "Previous Ticket Credit"}</span>
-                                    <span className="text-emerald-600 dark:text-green-400 font-bold">{formatCurrency(inheritedCredit)}</span>
-                                </div>
-                            )}
-                            {currentPaid > 0 && (
-                                <div className="flex justify-between items-center text-xs">
-                                    <span className="text-cyan-800 dark:text-zinc-400">{t('paidAmount') || "Previously Paid (Deposits/Originals)"}</span>
-                                    <span className="text-cyan-600 dark:text-cyan-400 font-bold">{formatCurrency(currentPaid)}</span>
-                                </div>
-                            )}
-                            <div className="pt-2 border-t border-cyan-500/20 dark:border-white/5 flex justify-between items-center">
-                                <span className="text-[10px] text-cyan-700 dark:text-cyan-400 uppercase tracking-widest font-black">
-                                    {netDelta < 0 ? (t('refundAmount') || "Refund Amount") : (netDelta === 0 ? "Settled (No Due)" : (t('netAmount') || "Net Difference Due"))}
+
+                            <div className="pt-2 border-t border-cyan-500/20 flex justify-between items-center">
+                                <span className="text-xs text-cyan-300 font-bold">
+                                    {netDelta < 0 ? "مستحق إرجاعه للعميل:" : (netDelta === 0 ? "تمت التسوية بالكامل" : "صافي المبلغ المستحق:")}
                                 </span>
                                 <span className={clsx(
-                                    "text-2xl font-black",
-                                    netDelta > 0 ? "text-emerald-600 dark:text-emerald-400" : netDelta < 0 ? "text-purple-600 dark:text-purple-400" : "text-cyan-600 dark:text-cyan-400"
+                                    "text-xl font-black",
+                                    netDelta > 0 ? "text-emerald-400" : netDelta < 0 ? "text-purple-400" : "text-cyan-400"
                                 )}>
                                     {formatCurrency(Math.abs(netDelta))}
                                 </span>
                             </div>
-                            {netDelta < 0 && (
-                                <p className="text-[9px] text-purple-600 dark:text-purple-400 font-bold uppercase tracking-tighter mt-1 animate-pulse">
-                                    {t('refundToWalletEnforcement') || "يتم إضافة المرتجع لرصيد العميل فقط حفاظاً على أمان الصندوق"}
-                                </p>
-                            )}
                         </div>
                     ) : (
-                        <>
-                            <div className="text-xs text-cyan-700 dark:text-cyan-400 uppercase tracking-widest font-bold mb-1">{t('balanceDue')}</div>
-                            <div className="text-3xl font-black text-cyan-950 dark:text-white">
+                        <div className="flex items-center justify-between px-2">
+                            <div className="text-right">
+                                <span className="text-[11px] text-cyan-300 font-bold block">المبلغ المستحق للدفع</span>
+                                <span className="text-[10px] text-zinc-400">تذكرة صيانة #{ticket?.ticketNumber || ticket?.id?.slice(0, 6)}</span>
+                            </div>
+                            <div className="text-2xl font-black text-cyan-400 tracking-tight">
                                 {formatCurrency(balanceDue)}
                             </div>
-                        </>
+                        </div>
                     )}
 
-                    {/* Financial Distribution Preview (New: CP-01) */}
+                    {/* Financial Distribution Preview */}
                     {paymentType === 'PAYMENT' && netDelta >= 0 && (
-                        <div className="mt-4 pt-4 border-t border-cyan-500/20 dark:border-cyan-500/10 space-y-2 animate-fly-in">
-                            <p className="text-[10px] text-cyan-800 dark:text-zinc-500 uppercase font-black tracking-widest flex items-center gap-1.5 justify-center">
-                                <LayoutDashboard className="w-3 h-3" />
-                                {t('profitDistribution') || "معاينة توزيع الارباح"}
-                            </p>
-                            
-                            <div className="grid grid-cols-2 gap-2">
-                                <div className="p-2 rounded-lg bg-cyan-500/5 dark:bg-white/5 border border-cyan-500/10 dark:border-white/5 flex flex-col items-center">
-                                    <span className="text-[9px] text-cyan-700 dark:text-zinc-500 uppercase font-bold">{t('laborPool') || "وعاء المصنعية"}</span>
-                                    <span className="text-xs font-black text-cyan-950 dark:text-white">
-                                        {formatCurrency(new Decimal(totalNewPrice).minus(ticket.parts?.reduce((s: number, p: { price?: number | string | null }) => s + Number(p.price || 0), 0) || 0).toNumber())}
-                                    </span>
-                                </div>
-                                <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10 flex flex-col items-center text-emerald-600 dark:text-emerald-400">
-                                    <span className="text-[9px] uppercase font-bold text-emerald-700 dark:text-zinc-500">{t('techShare') || "نصيب المهندس"}</span>
-                                    <span className="text-xs font-black">
-                                        {formatCurrency(
-                                            new Decimal(totalNewPrice)
-                                                .minus(ticket.parts?.reduce((s: number, p: { price?: number | string | null }) => s + Number(p.price || 0), 0) || 0)
-                                                .mul(new Decimal(ticket.commissionRate || 0).div(100))
-                                                .toNumber()
-                                        )}
-                                    </span>
-                                </div>
+                        <div className="mt-2.5 pt-2 border-t border-cyan-500/20 grid grid-cols-2 gap-2 text-right">
+                            <div className="p-1.5 rounded-lg bg-black/30 border border-white/5 flex items-center justify-between px-2.5">
+                                <span className="text-[10px] text-zinc-400 font-medium">أجور اليد / الصندوق</span>
+                                <span className="text-[11px] font-black text-white">{formatCurrency(centerLaborProfit)}</span>
+                            </div>
+                            <div className="p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between px-2.5">
+                                <span className="text-[10px] text-emerald-400 font-medium">نسبة الفني</span>
+                                <span className="text-[11px] font-black text-emerald-400">{formatCurrency(techShareAmount)}</span>
                             </div>
                         </div>
                     )}
 
                     {/* Change Calculator */}
                     {!isWarrantyReturn && changeAmount > 0 && (
-                        <div className="mt-3 pt-3 border-t border-cyan-500/20 animate-fly-in">
-                            <div className="flex items-center justify-between bg-yellow-400/10 p-2 rounded-lg border border-yellow-400/20">
-                                <span className="text-yellow-600 dark:text-yellow-400 font-bold text-xs">{t('change') || "Change"}</span>
-                                <span className="text-yellow-600 dark:text-yellow-400 font-black text-lg">{formatCurrency(changeAmount)}</span>
-                            </div>
+                        <div className="mt-2 pt-2 border-t border-yellow-500/20 flex items-center justify-between bg-yellow-500/10 p-1.5 rounded-lg">
+                            <span className="text-yellow-400 font-bold text-xs">المتبقي للعميل (الفكة):</span>
+                            <span className="text-yellow-400 font-black text-base">{formatCurrency(changeAmount)}</span>
                         </div>
                     )}
                 </div>
 
-                <div className="space-y-4">
-                    {/* Payment Method Grid */}
-                    <div className="space-y-2">
-                        <Label className="text-zinc-400 text-xs uppercase tracking-wider">{commonT('methods.title')}</Label>
-                        <div className="grid grid-cols-3 gap-2">
-                            {[
-                                { id: 'CASH', icon: Banknote, label: commonT('methods.CASH') },
-                                { id: 'VISA', icon: CreditCard, label: commonT('methods.VISA') },
-                                { id: 'WALLET', icon: Smartphone, label: commonT('methods.WALLET') },
-                                { id: 'INSTAPAY', icon: ArrowRightLeft, label: commonT('methods.INSTAPAY') },
-                                { id: 'ACCOUNT', icon: UserCircle, label: commonT('methods.ACCOUNT') },
-                            ].map((m) => (
-                                <button
-                                    key={m.id}
-                                    disabled={netDelta < 0 && m.id !== 'ACCOUNT'}
-                                    onClick={() => setPaymentMethod(m.id)}
-                                    className={clsx(
-                                        "flex flex-col items-center justify-center p-2 rounded-xl border transition-all gap-1.5 min-h-[70px]",
-                                        paymentMethod === m.id
-                                            ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.1)]'
-                                             : (netDelta < 0 && m.id !== 'ACCOUNT' 
-                                                ? 'bg-muted border-border text-muted-foreground cursor-not-allowed opacity-50' 
-                                                : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground')
-                                    )}
-                                >
-                                    <m.icon className="w-5 h-5" />
-                                    <span className="text-[10px] font-bold uppercase">{m.label}</span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Payment Type Toggle */}
-                    <div className="flex gap-2 bg-muted/40 rounded-xl p-1">
-                        <button
-                            onClick={() => setPaymentType('PAYMENT')}
-                            className={clsx(
-                                "flex-1 py-2 px-4 rounded-lg text-xs font-bold transition-all",
-                                paymentType === 'PAYMENT'
-                                    ? "bg-cyan-500 text-white shadow-lg"
-                                    : "text-muted-foreground hover:text-foreground"
-                            )}
-                        >
-                            {t('finalPayment')}
-                        </button>
-                        <button
-                            onClick={() => setPaymentType('DEPOSIT')}
-                            className={clsx(
-                                "flex-1 py-2 px-4 rounded-lg text-xs font-bold transition-all",
-                                paymentType === 'DEPOSIT'
-                                    ? "bg-yellow-500 text-white shadow-lg"
-                                    : "text-muted-foreground hover:text-foreground"
-                            )}
-                        >
-                            {t('deposit')}
-                        </button>
-                    </div>
-
-                    {/* Amount Input */}
-                    <div className="space-y-2">
-                        <Label className="text-muted-foreground text-xs uppercase tracking-wider">{t('paymentAmount')}</Label>
-                        <div className="relative">
-                            <Input
-                                type="number"
-                                value={amount}
-                                onChange={(e) => setAmount(e.target.value)}
-                                className="solid-input pl-10 h-14 text-2xl font-black text-emerald-600 dark:text-green-400 bg-muted/40 border-border"
-                                placeholder="0.00"
-                            />
-                            <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 w-6 h-6 text-muted-foreground" />
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">EGP</div>
-                        </div>
-                        <div className="flex gap-2">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-[10px] h-7 bg-muted/40 hover:bg-muted/80 text-muted-foreground hover:text-foreground"
-                                onClick={() => setAmount(isWarrantyReturn ? netDelta.toString() : balanceDue.toString())}
-                            >
-                                {isWarrantyReturn ? (t('fullDelta') || "Full Delta") : t('fullBalance')}
-                            </Button>
-                            {!isWarrantyReturn && (
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-[10px] h-7 bg-muted/40 hover:bg-muted/80 text-muted-foreground hover:text-foreground"
-                                    onClick={() => setAmount((balanceDue / 2).toString())}
-                                >
-                                    {t('half')}
-                                </Button>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Reference (for Visa/Wallet/InstaPay) */}
-                    {['VISA', 'WALLET', 'INSTAPAY'].includes(paymentMethod) && (
-                        <div className="space-y-2 animate-fly-in">
-                            <Label className="text-muted-foreground text-xs uppercase tracking-wider">{t('referenceAuthCode')}</Label>
-                            <Input
-                                value={reference}
-                                onChange={e => setReference(e.target.value)}
-                                placeholder={t('referenceAuthCode')}
-                                className="bg-muted/40 border-border h-10 text-sm"
-                            />
-                        </div>
-                    )}
-
-                    {/* Warranty Selection */}
-                    {paymentType === 'PAYMENT' && netDelta >= 0 && (
-                        <div className="space-y-3 p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-xl animate-fly-in">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <Checkbox
-                                        id="warranty-toggle"
-                                        checked={warrantyEnabled}
-                                        onCheckedChange={(val) => setWarrantyEnabled(val as boolean)}
-                                        className="border-emerald-500/50 data-[state=checked]:bg-emerald-500 data-[state=checked]:text-black"
-                                    />
-                                    <Label htmlFor="warranty-toggle" className="text-emerald-500 font-bold text-[10px] uppercase tracking-wider cursor-pointer">
-                                        {t('enableWarranty') || "تفعيل الضمان"}
-                                    </Label>
-                                </div>
-                                {warrantyEnabled && (
-                                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px] h-5 font-black uppercase">
-                                        {warrantyDays} {commonT('days')}
-                                    </Badge>
+                {/* Compact Payment Method Grid */}
+                <div className="space-y-1.5">
+                    <Label className="text-zinc-400 text-[11px] font-bold">طريقة الدفع</Label>
+                    <div className="grid grid-cols-5 gap-1.5">
+                        {[
+                            { id: 'CASH', icon: Banknote, label: 'نقداً' },
+                            { id: 'VISA', icon: CreditCard, label: 'بطاقة' },
+                            { id: 'WALLET', icon: Smartphone, label: 'محفظة' },
+                            { id: 'INSTAPAY', icon: ArrowRightLeft, label: 'إنستا باي' },
+                            { id: 'ACCOUNT', icon: UserCircle, label: 'آجل / حساب' },
+                        ].map((m) => (
+                            <button
+                                key={m.id}
+                                disabled={netDelta < 0 && m.id !== 'ACCOUNT'}
+                                onClick={() => setPaymentMethod(m.id)}
+                                className={clsx(
+                                    "flex flex-col items-center justify-center p-1.5 rounded-lg border transition-all gap-1 min-h-[52px]",
+                                    paymentMethod === m.id
+                                        ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.15)] font-bold'
+                                        : (netDelta < 0 && m.id !== 'ACCOUNT' 
+                                            ? 'bg-zinc-900/40 border-zinc-800 text-zinc-600 cursor-not-allowed opacity-50' 
+                                            : 'bg-zinc-900/50 border-zinc-800 text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200')
                                 )}
-                            </div>
+                            >
+                                <m.icon className="w-4 h-4" />
+                                <span className="text-[10px] leading-tight">{m.label}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
 
-                            {warrantyEnabled && (
-                                <div className="space-y-3 pt-3 border-t border-emerald-500/10 animate-fade-in">
-                                    <div className="grid grid-cols-4 gap-2">
-                                        {[30, 60, 90, 180].map(d => (
-                                            <Button
-                                                key={d}
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => setWarrantyDays(d)}
+                {/* Reference Code for Non-Cash */}
+                {['VISA', 'WALLET', 'INSTAPAY'].includes(paymentMethod) && (
+                    <div className="space-y-1">
+                        <Label className="text-[10px] text-zinc-400 font-bold">رقم العملية / المرجع</Label>
+                        <Input
+                            placeholder="أدخل رقم الإيصال أو المرجع..."
+                            value={reference}
+                            onChange={e => setReference(e.target.value)}
+                            className="h-8 text-xs bg-zinc-900/60 border-zinc-800"
+                        />
+                    </div>
+                )}
+
+                {/* Payment Amount & Type Box */}
+                {netDelta >= 0 && (
+                    <div className="space-y-2 p-2.5 bg-zinc-900/40 rounded-xl border border-zinc-800/80">
+                        {/* Segmented Type Toggle */}
+                        <div className="flex gap-1.5 bg-black/40 p-1 rounded-lg">
+                            <button
+                                type="button"
+                                onClick={() => { setPaymentType('DEPOSIT'); setAmount(balanceDue.toString()); }}
+                                className={clsx(
+                                    "flex-1 py-1 px-2 rounded-md text-[11px] font-bold transition-all",
+                                    paymentType === 'DEPOSIT'
+                                        ? "bg-amber-500 text-black shadow-sm"
+                                        : "text-zinc-400 hover:text-white"
+                                )}
+                            >
+                                دفعة / عربون مقدم
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => { setPaymentType('PAYMENT'); setAmount(balanceDue.toString()); }}
+                                className={clsx(
+                                    "flex-1 py-1 px-2 rounded-md text-[11px] font-bold transition-all",
+                                    paymentType === 'PAYMENT'
+                                        ? "bg-cyan-500 text-black shadow-sm"
+                                        : "text-zinc-400 hover:text-white"
+                                )}
+                            >
+                                سداد كامل / نهائي
+                            </button>
+                        </div>
+
+                        {/* Amount Input & Quick Buttons */}
+                        <div className="flex items-center gap-2">
+                            <div className="relative flex-1">
+                                <Input
+                                    type="number"
+                                    step="0.01"
+                                    placeholder="0.00"
+                                    value={amount}
+                                    onChange={e => setAmount(e.target.value)}
+                                    className="h-9 text-base font-black bg-black/50 border-zinc-700 text-center text-cyan-400 pr-2 pl-8"
+                                />
+                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-zinc-500 font-bold">ج.م</span>
+                            </div>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-9 px-2 text-[11px] font-bold border-zinc-700 bg-zinc-800/50 hover:bg-zinc-700"
+                                onClick={() => setAmount(balanceDue.toString())}
+                            >
+                                المبلغ كاملاً
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-9 px-2 text-[11px] font-bold border-zinc-700 bg-zinc-800/50 hover:bg-zinc-700"
+                                onClick={() => setAmount((balanceDue / 2).toFixed(2))}
+                            >
+                                50%
+                            </Button>
+                        </div>
+
+                        {/* Compact Warranty Extension */}
+                        {paymentType === 'PAYMENT' && (
+                            <div className="pt-2 border-t border-white/5 space-y-1.5">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => setWarrantyEnabled(!warrantyEnabled)}>
+                                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                                        <span className="text-[11px] font-bold text-zinc-300">منح فترة ضمان</span>
+                                    </div>
+                                    <Checkbox
+                                        checked={warrantyEnabled}
+                                        onCheckedChange={(checked) => setWarrantyEnabled(!!checked)}
+                                        className="h-3.5 w-3.5 border-emerald-500/60 data-[state=checked]:bg-emerald-500"
+                                    />
+                                </div>
+
+                                {warrantyEnabled && (
+                                    <div className="grid grid-cols-4 gap-1 pt-0.5">
+                                        {[30, 60, 90, 180].map((days) => (
+                                            <button
+                                                key={days}
+                                                type="button"
+                                                onClick={() => setWarrantyDays(days)}
                                                 className={clsx(
-                                                    "h-8 text-[9px] font-black rounded-lg border transition-all",
-                                                    warrantyDays === d
-                                                        ? "bg-emerald-500 text-black border-emerald-500 shadow-lg shadow-emerald-500/20"
-                                                        : "bg-white/5 border-white/5 hover:border-emerald-500/30 text-zinc-400"
+                                                    "py-1 px-1.5 rounded text-[10px] font-bold border transition-all",
+                                                    warrantyDays === days
+                                                        ? "bg-emerald-500/20 border-emerald-500 text-emerald-300"
+                                                        : "bg-black/30 border-zinc-800 text-zinc-400 hover:bg-zinc-800"
                                                 )}
                                             >
-                                                {d} {commonT('days')}
-                                            </Button>
+                                                {days} يوم
+                                            </button>
                                         ))}
                                     </div>
-
-                                    <div className="flex items-center justify-between px-1">
-                                        <div className="flex items-center gap-2">
-                                            <ShieldCheck className="w-3 h-3 text-emerald-500" />
-                                            <span className="text-[9px] text-zinc-500 uppercase tracking-widest font-black">{t('expiryDate') || "تاريخ الانتهاء"}</span>
-                                        </div>
-                                        <div className="flex flex-col items-end">
-                                            <span className="text-xs font-black text-emerald-400 tracking-tighter">
-                                                {warrantyExpiryDate.toLocaleDateString('ar-EG')}
-                                            </span>
-                                            <span className="text-[8px] text-zinc-500 uppercase font-black tracking-widest leading-none">
-                                                (يبدأ من اليوم)
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Customer Selection for Account Payment or Info */}
-                    {paymentMethod === "ACCOUNT" && (
-                        <div className="space-y-3 p-4 bg-muted/40 rounded-xl border border-border animate-fly-in">
-                            {/* Employee Detection Banner */}
-                            {employeeData && (
-                                <div className="bg-blue-500/10 border border-blue-500/30 p-3 rounded-lg flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
-                                            <UserCheck className="w-4 h-4 text-blue-500 dark:text-blue-400" />
-                                        </div>
-                                        <div>
-                                            <p className="text-xs font-bold text-blue-600 dark:text-blue-400">{employeeData.name}</p>
-                                            <p className="text-[10px] text-muted-foreground tracking-tighter">{t('empSalDeduction')}</p>
-                                        </div>
-                                    </div>
-                                    <ShieldAlert className="w-4 h-4 text-blue-500 dark:text-blue-400 opacity-50" />
-                                </div>
-                            )}
-
-                            <div className="flex items-center justify-between mb-1">
-                                <Label className="text-[10px] text-muted-foreground uppercase font-black">{t('customerAccount')}</Label>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 text-[10px] text-cyan-600 dark:text-cyan-500 hover:bg-cyan-500/10"
-                                    onClick={() => setIsCreatingCustomer(!isCreatingCustomer)}
-                                >
-                                    {isCreatingCustomer ? t('searchExisting') : t('addNewCustomer')}
-                                </Button>
+                                )}
                             </div>
+                        )}
+                    </div>
+                )}
 
-                            {isCreatingCustomer ? (
-                                <div className="grid grid-cols-2 gap-2 animate-fly-in">
-                                    <Input
-                                        placeholder={commonT('name')}
-                                        value={newCustomerName}
-                                        onChange={e => setNewCustomerName(e.target.value)}
-                                        className="h-10 text-xs bg-background border-border"
-                                    />
-                                    <Input
-                                        placeholder={commonT('phone')}
-                                        value={newCustomerPhone}
-                                        onChange={e => setNewCustomerPhone(e.target.value)}
-                                        className="h-10 text-xs bg-background border-border"
-                                    />
+                {/* Customer Account Selection */}
+                {paymentMethod === "ACCOUNT" && (
+                    <div className="space-y-2 p-2.5 bg-zinc-900/60 rounded-xl border border-zinc-800">
+                        {employeeData && (
+                            <div className="bg-blue-500/10 border border-blue-500/30 p-2 rounded-lg flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center">
+                                        <UserCheck className="w-3.5 h-3.5 text-blue-400" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[11px] font-bold text-blue-400">{employeeData.name}</p>
+                                        <p className="text-[9px] text-zinc-400">خصم من راتب الموظف (آجل)</p>
+                                    </div>
                                 </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    <SearchableSelect
-                                        options={customers.map(c => ({ label: `${c.name} (${c.phone})`, value: c.id }))}
-                                        value={selectedCustomer?.id || ""}
-                                        onChange={(val) => {
-                                            const cust = customers.find(c => c.id === val);
-                                            setSelectedCustomer(cust);
-                                        }}
-                                        onSearch={setCustomerQuery}
-                                        placeholder={t('searchPlaceHolder')}
-                                        className="h-10"
-                                    />
-                                    {selectedCustomer && (
-                                        <div className="flex items-center justify-between px-2 pt-1">
-                                            <span className="text-[10px] text-muted-foreground">{t('currentBalance')}:</span>
-                                            <span className={clsx(
-                                                "text-xs font-bold",
-                                                Number(selectedCustomer.balance) > 0 ? "text-red-500 dark:text-red-400" : "text-emerald-600 dark:text-green-400"
-                                            )}>
-                                                {formatCurrency(selectedCustomer.balance)}
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+                                <ShieldAlert className="w-3.5 h-3.5 text-blue-400 opacity-50" />
+                            </div>
+                        )}
+
+                        <div className="flex items-center justify-between">
+                            <Label className="text-[11px] text-zinc-400 font-bold">حساب العميل الآجل</Label>
+                            <button
+                                type="button"
+                                className="text-[10px] text-cyan-400 hover:underline"
+                                onClick={() => setIsCreatingCustomer(!isCreatingCustomer)}
+                            >
+                                {isCreatingCustomer ? "بحث عن مسجل" : "+ عميل جديد"}
+                            </button>
                         </div>
-                    )}
-                </div>
 
-                {/* Footer Actions */}
-                <div className="pt-4 flex gap-3 border-t border-white/5">
-                    <Button variant="ghost" onClick={onClose} className="flex-1 text-zinc-500 h-14">
-                        {commonT('cancel').toUpperCase()}
+                        {isCreatingCustomer ? (
+                            <div className="grid grid-cols-2 gap-1.5">
+                                <Input
+                                    placeholder="اسم العميل"
+                                    value={newCustomerName}
+                                    onChange={e => setNewCustomerName(e.target.value)}
+                                    className="h-8 text-xs bg-black/40 border-zinc-800"
+                                />
+                                <Input
+                                    placeholder="رقم الهاتف"
+                                    value={newCustomerPhone}
+                                    onChange={e => setNewCustomerPhone(e.target.value)}
+                                    className="h-8 text-xs bg-black/40 border-zinc-800"
+                                />
+                            </div>
+                        ) : (
+                            <div className="space-y-1">
+                                <SearchableSelect
+                                    options={customers.map(c => ({ label: `${c.name} (${c.phone})`, value: c.id }))}
+                                    value={selectedCustomer?.id || ""}
+                                    onChange={(val) => {
+                                        const cust = customers.find(c => c.id === val);
+                                        setSelectedCustomer(cust);
+                                    }}
+                                    onSearch={setCustomerQuery}
+                                    placeholder="ابحث بالاسم أو الهاتف..."
+                                    className="h-8 text-xs"
+                                />
+                                {selectedCustomer && (
+                                    <div className="flex items-center justify-between px-1 pt-0.5">
+                                        <span className="text-[10px] text-zinc-400">الرصيد:</span>
+                                        <span className={clsx(
+                                            "text-[11px] font-bold",
+                                            Number(selectedCustomer.balance) > 0 ? "text-red-400" : "text-emerald-400"
+                                        )}>
+                                            {formatCurrency(selectedCustomer.balance)}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Compact Footer Actions */}
+                <div className="pt-2 flex gap-2 border-t border-white/5">
+                    <Button variant="ghost" onClick={onClose} className="flex-1 text-zinc-400 h-11 text-xs">
+                        إلغاء
                     </Button>
                     <Button
                         onClick={handleProcessPayment}
                         disabled={isLoading}
                         className={clsx(
-                            "flex-[2] font-black h-14 shadow-lg border-0 transition-all",
+                            "flex-[2.5] font-black h-11 text-xs shadow-lg transition-all",
                             netDelta < 0
                                 ? "bg-red-600 hover:bg-red-500 shadow-red-500/20 text-white"
-                                : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 shadow-cyan-500/20 text-white"
+                                : "bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 shadow-cyan-500/20 text-black font-extrabold"
                         )}
                     >
-                        {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
-                            netDelta < 0 ? <ArrowRightLeft className="w-5 h-5 mr-2" /> : <CreditCard className="w-5 h-5 mr-2" />
+                        {isLoading ? <Loader2 className="w-4 h-4 animate-spin ml-1.5" /> : (
+                            netDelta < 0 ? <ArrowRightLeft className="w-4 h-4 ml-1.5" /> : <CreditCard className="w-4 h-4 ml-1.5" />
                         )}
-                        {!['COMPLETED', 'READY_AT_BRANCH', 'DELIVERED', 'PAID_DELIVERED'].includes(ticket.status) ? (
-                            "تأكيد تسجيل العربون / الدفعة المقدمة"
+                        {isUnfinished ? (
+                            "تسجيل الدفعة المقدمة"
                         ) : (isWarrantyReturn || currentPaid > 0 || netDelta < 0) ? (
-                            netDelta > 0 ? (t('collectDifference') || "Collect Difference").toUpperCase() :
-                                netDelta < 0 ? (t('refundCustomer') || "Refund Customer").toUpperCase() :
-                                    (t('settleAndClose') || "Settle & Close").toUpperCase()
-                        ) : t('confirmPayment').toUpperCase()}
+                            netDelta > 0 ? "تحصيل فرق الحساب" :
+                                netDelta < 0 ? "إرجاع الفارق للعميل" :
+                                    "تسوية وإغلاق التذكرة"
+                        ) : "تأكيد واستلام الدفعة"}
                     </Button>
                 </div>
             </div>
@@ -768,7 +738,6 @@ return (
     );
 }
 
-// Helper icons mapping for SearchableSelect can be added if needed, but here we use simple ones
 function UserCheck(props: React.SVGProps<SVGSVGElement>) {
     return <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="m16 11 2 2 4-4" /></svg>
 }

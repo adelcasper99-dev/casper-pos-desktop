@@ -51,6 +51,7 @@ import TicketPrintOptionsModal, { checkPrinterAndRedirect } from "@/components/t
 import WarrantyCard from "@/components/tickets/WarrantyCard";
 import TechnicianAssignmentModal from "@/components/tickets/TechnicianAssignmentModal";
 import ReopenDeliveredTicketModal from "@/components/tickets/ReopenDeliveredTicketModal";
+import { ReturnInitiationModal } from "@/components/tickets/wizard/ReturnInitiationModal";
 import { generateWhatsAppUrl, getStatusTemplate } from "@/lib/whatsapp-templates";
 import { printService } from "@/lib/print-service";
 
@@ -242,8 +243,14 @@ export default function TicketDetailPage() {
     const isSpeedPrintEnabled = printService.getRegistry()?.enableSpeedPrint !== false;
 
 
+    const [isMounted, setIsMounted] = useState(false);
+
     const clearPrintGuard = () =>
         ticket?.id && sessionStorage.removeItem(`ticket_autoprint_${ticket.id}`);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
     useEffect(() => {
         if (id) loadData();
@@ -470,8 +477,8 @@ export default function TicketDetailPage() {
         setShowPrintOptions(true);
     };
 
-    if (loading) return (
-        <div className="flex items-center justify-center h-[100dvh] bg-slate-50 dark:bg-[#09090b] text-slate-900 dark:text-white transition-colors">
+    if (!isMounted || loading) return (
+        <div className="flex items-center justify-center h-[100dvh] bg-slate-50 dark:bg-[#09090b] text-slate-900 dark:text-white transition-colors" suppressHydrationWarning>
             <div className="flex flex-col items-center gap-4">
                 <div className="w-12 h-12 border-4 border-slate-300 dark:border-white/20 border-t-black dark:border-t-white rounded-full animate-spin" />
                 <p className="text-slate-500 dark:text-zinc-400 animate-pulse">{tCommon('loading')}...</p>
@@ -480,7 +487,7 @@ export default function TicketDetailPage() {
     );
 
     if (!ticket) return (
-        <div className="flex items-center justify-center h-[100dvh] bg-slate-50 dark:bg-[#09090b] transition-colors">
+        <div className="flex items-center justify-center h-[100dvh] bg-slate-50 dark:bg-[#09090b] transition-colors" suppressHydrationWarning>
             <Card className="bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-center p-8 max-w-md mx-auto shadow-2xl">
                 <X className="w-12 h-12 text-slate-400 dark:text-red-500 mx-auto mb-4" />
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{t('ticketNotFound')}</h2>
@@ -492,7 +499,7 @@ export default function TicketDetailPage() {
     );
 
     return (
-        <div className="h-[100dvh] overflow-hidden bg-slate-50 dark:bg-[#09090b] text-slate-900 dark:text-zinc-100 flex flex-col pt-2 transition-colors" dir="rtl">
+        <div className="h-[100dvh] overflow-hidden bg-slate-50 dark:bg-[#09090b] text-slate-900 dark:text-zinc-100 flex flex-col pt-2 transition-colors" dir="rtl" suppressHydrationWarning>
             {/* Phase 1: Fixed Sleek Compact Header */}
             <header className="h-12 px-4 border-b border-slate-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/70 backdrop-blur-md shrink-0 flex items-center justify-between z-20">
                 <div className="flex items-center gap-3">
@@ -1011,7 +1018,9 @@ export default function TicketDetailPage() {
                                     {amountPaidDec.gt(0) && (
                                         <div className="flex items-center justify-between pt-1 border-t border-slate-200 dark:border-zinc-800 text-[9px] font-bold">
                                             <span className="text-slate-500 dark:text-zinc-400">
-                                                {isUnrepairedWithDeposit ? "عربون مسبق مسجل:" : "المدفوع مسبقاً:"}
+                                                {isDeliveredState || isFullyPaid
+                                                    ? "إجمالي المبلغ المسدد:"
+                                                    : (isUnrepairedWithDeposit ? "عربون مسبق مسجل:" : "المسدد حتى الآن:")}
                                             </span>
                                             <div className="flex items-center gap-1.5">
                                                 <span className="text-emerald-500 font-mono font-black">{amountPaidDec.toNumber().toLocaleString()} ج.م</span>
@@ -1042,15 +1051,14 @@ export default function TicketDetailPage() {
                                     </Button>
                                 )}
 
-                                {/* Prematurely Closed / Reopen Action Button */}
+                                {/* Warranty Return / Refund Action Button */}
                                 {isDeliveredState && (
                                     <Button
-                                        onClick={() => setShowReopenModal(true)}
-                                        variant="outline"
-                                        className="w-full h-8 text-[11px] font-bold text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/10 flex items-center justify-center gap-1.5"
+                                        onClick={() => setShowReturnModal(true)}
+                                        className="w-full h-8.5 bg-amber-500 hover:bg-amber-600 text-black font-black rounded-lg text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                                     >
                                         <RotateCcw className="w-3.5 h-3.5" />
-                                        <span>استئناف الإصلاح (إلغاء التسليم المبكر)</span>
+                                        <span>إجراء مرتجع / ضمان</span>
                                     </Button>
                                 )}
 
@@ -1216,6 +1224,15 @@ export default function TicketDetailPage() {
                     deviceBrand: ticket.deviceBrand,
                     deviceModel: ticket.deviceModel,
                 }}
+                onSuccess={loadData}
+            />
+
+            <ReturnInitiationModal 
+                isOpen={showReturnModal}
+                onClose={() => setShowReturnModal(false)}
+                ticketId={ticket.id}
+                barcode={ticket.barcode}
+                parts={ticket.parts}
                 onSuccess={loadData}
             />
         </div>
