@@ -20,6 +20,7 @@ import { getCurrentUser } from "./auth";
 import { getTranslations } from "@/lib/i18n-mock";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import { normalizeMasterDataName } from "@/shared/utils/string";
+import { deductTreasuryBalance } from "@/lib/treasury-guard";
 
 // --- Suppliers ---
 
@@ -266,17 +267,13 @@ export const paySupplier = secureAction(async (data: { supplierId: string, amoun
 
         // 🆕 Update Treasury Balance (Real Money Movement)
         if (defaultTreasuryId) {
-            const treasury = await tx.treasury.findUnique({ where: { id: defaultTreasuryId } });
-            const currentBalance = new Decimal(treasury?.balance?.toString() || "0");
-            if (currentBalance.lt(amountDec)) {
-                const canGoNegative = hasPermission(user?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
-                if (!canGoNegative) {
-                    throw new Error(`رصيد الخزنة غير كافٍ (${currentBalance.toFixed(2)}). ولا تملك صلاحية السحب بالسالب.`);
-                }
-            }
-            await tx.treasury.update({
-                where: { id: defaultTreasuryId },
-                data: { balance: { decrement: amountDec } }
+            const canGoNegative = hasPermission(user?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+            await deductTreasuryBalance({
+                tx,
+                treasuryId: defaultTreasuryId,
+                amount: amountDec,
+                actionDescription: "سداد مورد",
+                allowOverdraftOverride: canGoNegative ? true : undefined,
             });
         }
 
@@ -1297,9 +1294,13 @@ export const createPurchase = secureAction(async (data: z.infer<typeof purchaseS
                         }
                     });
 
-                    await tx.treasury.update({
-                        where: { id: treasury.id },
-                        data: { balance: { decrement: paidAmountDec } }
+                    const canGoNegative = hasPermission(user?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                    await deductTreasuryBalance({
+                        tx,
+                        treasuryId: treasury.id,
+                        amount: paidAmountDec,
+                        actionDescription: `سداد فاتورة مشتريات #${finalInvoiceNumber}`,
+                        allowOverdraftOverride: canGoNegative ? true : undefined,
                     });
                 }
             }
@@ -1626,7 +1627,14 @@ export const updatePurchase = secureAction(async (data: { id: string; data: z.in
                             shiftId: currentShift?.id || 'SYSTEM_SHIFT'
                         }
                     });
-                    await tx.treasury.update({ where: { id: treasury.id }, data: { balance: { decrement: diffAmountDec } } });
+                    const canGoNegative = hasPermission(user?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                    await deductTreasuryBalance({
+                        tx,
+                        treasuryId: treasury.id,
+                        amount: diffAmountDec,
+                        actionDescription: `تعديل سداد فاتورة مشتريات #${header.invoiceNumber || id}`,
+                        allowOverdraftOverride: canGoNegative ? true : undefined,
+                    });
                 }
             }
         }

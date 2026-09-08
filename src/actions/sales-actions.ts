@@ -24,6 +24,7 @@ import {
     createCustomerTransactionJournal,
     createSupplierPaymentJournal 
 } from '@/lib/accounting/inline-journal-helpers';
+import { deductTreasuryBalance } from '@/lib/treasury-guard';
 import { refundSaleSchema, partialRefundSaleSchema } from '@/lib/validation/sales';
 import { z } from 'zod';
 import { CustomerIndexingService } from '@/lib/customer-indexing-service';
@@ -313,19 +314,13 @@ export const refundSale = secureAction(async (rawData: z.infer<typeof refundSale
 
         // 🏦 Deduct physical cash from treasury (only the cash portion)
         if (treasury && finalAmountToCash > 0) {
-            const treasuryBalance = new Decimal(treasury.balance?.toString() || 0);
-            const amountToDeduct = new Decimal(finalAmountToCash);
-            
-            // Check for negative balance permission
-            if (treasuryBalance.lt(amountToDeduct)) {
-                const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
-                if (!canGoNegative) {
-                    throw new Error(`رصيد الخزنة غير كافٍ (${treasuryBalance.toFixed(2)}). ولا تملك صلاحية السحب بالسالب لإتمام المرتجع.`);
-                }
-            }
-            await tx.treasury.update({
-                where: { id: treasury.id },
-                data: { balance: { decrement: amountToDeduct } }
+            const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+            await deductTreasuryBalance({
+                tx,
+                treasuryId: treasury.id,
+                amount: finalAmountToCash,
+                actionDescription: `مرتجع فاتورة مبيعات #${sale.id.split('-')[0]}`,
+                allowOverdraftOverride: canGoNegative ? true : undefined,
             });
         }
 
@@ -878,19 +873,13 @@ export const partialRefundSale = secureAction(async (rawData: z.infer<typeof par
                 }
             });
             if (treasury) {
-                const treasuryBalance = new Decimal(treasury.balance?.toString() || 0);
-                const deductionAmount = new Decimal(finalAmountToCash);
-                
-                // Check for negative balance permission
-                if (treasuryBalance.lt(deductionAmount)) {
-                    const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
-                    if (!canGoNegative) {
-                        throw new Error(`رصيد الخزنة غير كافٍ (${treasuryBalance.toFixed(2)}). ولا تملك صلاحية السحب بالسالب لإتمام المرتجع.`);
-                    }
-                }
-                await tx.treasury.update({ 
-                    where: { id: treasury.id }, 
-                    data: { balance: { decrement: deductionAmount } } 
+                const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                await deductTreasuryBalance({
+                    tx,
+                    treasuryId: treasury.id,
+                    amount: finalAmountToCash,
+                    actionDescription: `مرتجع جزئي لفاتورة مبيعات #${sale.id.split('-')[0]}`,
+                    allowOverdraftOverride: canGoNegative ? true : undefined,
                 });
             }
         }

@@ -1,6 +1,7 @@
 import { PrismaClient, Prisma } from "@prisma/client";
 import { PrismaTransactionClient } from "@/lib/prisma";
 import { Decimal } from "decimal.js";
+import { deductTreasuryBalance } from "@/lib/treasury-guard";
 
 /**
  * FinancialReversalService
@@ -52,14 +53,19 @@ export class FinancialReversalService {
                 // We follow the logic in deleteTreasuryTransaction in treasury.ts
                 const isIncome = IN_TYPES.has(transaction.type);
 
-                await tx.treasury.update({
-                    where: { id: transaction.treasuryId },
-                    data: {
-                        balance: isIncome 
-                            ? { decrement: amount } // Remove income
-                            : { increment: amount } // Return expense
-                    }
-                });
+                if (isIncome) {
+                    await deductTreasuryBalance({
+                        tx,
+                        treasuryId: transaction.treasuryId,
+                        amount,
+                        actionDescription: `إلغاء معاملة ${referenceType}: ${reason}`,
+                    });
+                } else {
+                    await tx.treasury.update({
+                        where: { id: transaction.treasuryId },
+                        data: { balance: { increment: amount } }
+                    });
+                }
             }
 
             // 3. Mark the transaction as reversed
