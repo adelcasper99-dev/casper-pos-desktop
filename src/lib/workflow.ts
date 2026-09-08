@@ -54,9 +54,9 @@ export const TICKET_TRANSITIONS: TransitionRule[] = [
         description: "Add Spare Parts & Services",
         actionLabel: "إضافة قطعة غيار"
     },
-    // 4.1 قيد الإصلاح / انتظار -> تم الاصلاح (Fixed)
+    // 4.1 قيد الإصلاح / انتظار / بالمركز / استلام -> تم الاصلاح (Fixed)
     {
-        from: [TicketStatus.IN_PROGRESS, TicketStatus.PENDING_APPROVAL, TicketStatus.QC_PENDING],
+        from: [TicketStatus.NEW, TicketStatus.DIAGNOSING, TicketStatus.AT_CENTER, TicketStatus.IN_PROGRESS, TicketStatus.PENDING_APPROVAL, TicketStatus.QC_PENDING],
         to: TicketStatus.COMPLETED,
         requiredPermission: PERMISSIONS.TICKET_COMPLETE,
         description: "Repair finished and completed",

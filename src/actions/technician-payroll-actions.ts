@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import Decimal from "decimal.js";
+import { deductTreasuryBalance } from "@/lib/treasury-guard";
 
 // Types
 export interface TechPayrollSummary {
@@ -212,19 +213,14 @@ export async function settleTechnicianPayroll({
                 throw new Error("الخزنة المحددة غير موجودة.");
             }
 
-            const currentBalance = new Decimal(treasury.balance?.toString() || 0);
             const payoutAmount = new Decimal(totalPayableAmount);
 
-            if (currentBalance.lessThan(payoutAmount)) {
-                throw new Error("عفواً، رصيد الخزنة الحالي لا يغطي إجمالي المستحق للصرف.");
-            }
-
-            // Deduct from Treasury
-            await tx.treasury.update({
-                where: { id: treasuryId },
-                data: {
-                    balance: currentBalance.minus(payoutAmount)
-                }
+            // Deduct from Treasury atomically with overdraft protection
+            await deductTreasuryBalance({
+                tx,
+                treasuryId,
+                amount: payoutAmount,
+                actionDescription: "صرف راتب وعمولة فني",
             });
 
             // Create Expense Record

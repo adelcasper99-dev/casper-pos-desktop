@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma, secureTransaction } from '@/lib/prisma';
 import { verifyServerLicense } from '@/lib/license/server-verify';
 import { runWithTenant } from '@/lib/prisma-tenant-extension';
+import { deductTreasuryBalance } from '@/lib/treasury-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,14 +76,20 @@ export async function POST(request: NextRequest) {
 
                 if (treasuryId) {
                     const isPositive = ['IN', 'CAPITAL', 'SALE', 'TICKET', 'CUSTOMER_PAYMENT'].includes(type);
-                    await tx.treasury.update({
-                        where: { id: treasuryId },
-                        data: {
-                            balance: isPositive
-                                ? { increment: amount }
-                                : { decrement: amount }
-                        }
-                    });
+                    if (isPositive) {
+                        await tx.treasury.update({
+                            where: { id: treasuryId },
+                            data: { balance: { increment: amount } }
+                        });
+                    } else {
+                        await deductTreasuryBalance({
+                            tx,
+                            treasuryId,
+                            amount,
+                            actionDescription: "مزامنة معاملة غير متصلة",
+                            // In offline sync, respect storeSettings.allowNegativeCash (or can allow overdraft if offline replay is authoritative)
+                        });
+                    }
                 }
                 
                 return newTransaction;

@@ -43,6 +43,7 @@ export async function getStoreSettings() {
                 locationLng: settings?.locationLng || 46.6753,
                 locationRadius: settings?.locationRadius || 500,
                 allowNegativeStock: settings?.allowNegativeStock || false,
+                allowNegativeCash: settings?.allowNegativeCash || false,
                 blindCloseEnabled: settings?.blindCloseEnabled ?? true,
                 licenseJwt: settings?.licenseJwt || null,
                 licenseKey: settings?.licenseKey || null,
@@ -143,6 +144,7 @@ export const updateStoreSettings = secureAction(async (data: unknown) => {
             locationLng: validated.locationLng ?? undefined,
             locationRadius: validated.locationRadius ?? undefined,
             allowNegativeStock: validated.allowNegativeStock ?? undefined,
+            allowNegativeCash: validated.allowNegativeCash ?? undefined,
             blindCloseEnabled: validated.blindCloseEnabled ?? undefined,
         },
         create: {
@@ -165,6 +167,7 @@ export const updateStoreSettings = secureAction(async (data: unknown) => {
             locationLng: validated.locationLng || 46.6753,
             locationRadius: validated.locationRadius || 500,
             allowNegativeStock: validated.allowNegativeStock || false,
+            allowNegativeCash: validated.allowNegativeCash || false,
             blindCloseEnabled: true,
         }
     });

@@ -3,17 +3,23 @@
 import { prisma } from "@/lib/prisma";
 import Decimal from "decimal.js";
 import { secureAction } from "@/lib/safe-action";
-import { PERMISSIONS } from "@/lib/permissions";
+import { PERMISSIONS, hasPermission } from "@/lib/permissions";
 import { getCurrentUser } from "./auth";
 import { AccountingEngine } from "@/lib/accounting/transaction-factory";
 import { revalidatePath } from "next/cache";
+import { deductTreasuryBalance } from "@/lib/treasury-guard";
 
 /**
  * processWalletTransaction
  * 
- * Logic:
- * DEPOSIT: Decrement digital treasury by base. Increment physical treasury by (base + commission).
- * WITHDRAWAL: Increment digital treasury by base. Decrement physical treasury by (base - commission).
+ * Logic (Store/Cashier perspective):
+ * - DEPOSIT (Cash-In / شحن محفظة): Customer pays cash to store -> Store sends digital balance to customer.
+ *   Digital safe decreases (guarded deduction: balance leaves store wallet).
+ *   Physical drawer increases (increment: cash received + commission).
+ * 
+ * - WITHDRAWAL (Cash-Out / سحب كاش): Customer sends digital balance to store -> Store pays physical cash to customer.
+ *   Digital safe increases (increment: balance received in store wallet).
+ *   Physical drawer decreases (guarded deduction: physical cash paid to customer).
  */
 export const processWalletTransaction = secureAction(async (data: {
     operationType: 'DEPOSIT' | 'WITHDRAWAL';
@@ -77,16 +83,26 @@ export const processWalletTransaction = secureAction(async (data: {
             throw new Error("يجب فتح وردية أولاً لإجراء هذه الحركة");
         }
 
-        // 🟢 DIGITAL MOVEMENT
-        const digitalUpdate = data.operationType === 'DEPOSIT' 
-            ? { decrement: baseAmount } 
-            : { increment: baseAmount };
-        
-        await tx.treasury.update({
-            where: { id: digitalSafe.id },
-            data: { balance: digitalUpdate }
-        });
+        const canGoNegative = hasPermission(user.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
 
+        // Note: 'DEPOSIT' = Customer deposits cash to branch -> Digital safe decreases (transfer to customer wallet), Physical cash increases.
+        //       'WITHDRAW' = Customer withdraws cash from wallet -> Digital safe increases, Physical cash decreases.
+        // 🟢 DIGITAL MOVEMENT
+        if (data.operationType === 'DEPOSIT') {
+            await deductTreasuryBalance({
+                tx,
+                treasuryId: digitalSafe.id,
+                amount: baseAmount,
+                actionDescription: `إيداع محفظة إلكترونية - الرصيد الرقمي`,
+                allowOverdraftOverride: canGoNegative ? true : undefined,
+            });
+        } else {
+            await tx.treasury.update({
+                where: { id: digitalSafe.id },
+                data: { balance: { increment: baseAmount } }
+            });
+        }
+        
         const digitalTx = await tx.transaction.create({
             data: {
                 type: data.operationType === 'DEPOSIT' ? 'EXPENSE' : 'IN',
@@ -100,14 +116,20 @@ export const processWalletTransaction = secureAction(async (data: {
         });
 
         // 🟢 PHYSICAL MOVEMENT
-        const physicalUpdate = data.operationType === 'DEPOSIT'
-            ? { increment: totalPhysicalMovement }
-            : { decrement: totalPhysicalMovement };
-
-        await tx.treasury.update({
-            where: { id: physicalSafe.id },
-            data: { balance: physicalUpdate }
-        });
+        if (data.operationType === 'DEPOSIT') {
+            await tx.treasury.update({
+                where: { id: physicalSafe.id },
+                data: { balance: { increment: totalPhysicalMovement } }
+            });
+        } else {
+            await deductTreasuryBalance({
+                tx,
+                treasuryId: physicalSafe.id,
+                amount: totalPhysicalMovement,
+                actionDescription: `سحب محفظة إلكترونية - النقد الفعلي`,
+                allowOverdraftOverride: canGoNegative ? true : undefined,
+            });
+        }
 
         const physicalTx = await tx.transaction.create({
             data: {

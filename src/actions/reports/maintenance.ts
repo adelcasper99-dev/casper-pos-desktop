@@ -7,6 +7,7 @@ import { secureAction } from "@/lib/safe-action";
 import { PERMISSIONS } from "@/lib/permissions";
 import { getCurrentUser } from "../auth";
 import { getBranchFilter } from "@/lib/data-filters";
+import { unstable_noStore as noStore } from "next/cache";
 
 interface MaintenanceReportFilters {
     startDate?: string;
@@ -16,6 +17,7 @@ interface MaintenanceReportFilters {
 }
 
 export const getMaintenanceProfitReport = secureAction(async (filters: MaintenanceReportFilters) => {
+    noStore();
     const currentUser = await getCurrentUser();
     const branchFilter = getBranchFilter(currentUser);
 
@@ -53,8 +55,12 @@ export const getMaintenanceProfitReport = secureAction(async (filters: Maintenan
 
     let totalRevenue = new Decimal(0);
     let partsCOGS = new Decimal(0);
+    let partsRevenue = new Decimal(0);
     let laborRevenue = new Decimal(0);
     let totalCommissions = new Decimal(0);
+    let totalPartsProfit = new Decimal(0);
+    let totalLaborProfit = new Decimal(0);
+    let totalNetProfit = new Decimal(0);
     let deliveredCount = 0;
     let returnCount = 0;
 
@@ -77,10 +83,33 @@ export const getMaintenanceProfitReport = secureAction(async (filters: Maintenan
         );
             
         const commission = new Decimal(ticket.commissionAmount?.toString() || '0');
+
+        // Calculate Parts Revenue vs Cost for this ticket
+        // Physical parts must have a linked product (p.productId != null)
+        const rawPartsRevenue = ticket.parts
+            .filter(p => !!p.productId && p.product?.itemType !== 'SERVICE' && p.status !== 'SERVICE' && !p.deletedAt)
+            .reduce((sum, p) => {
+                const qty = new Decimal(Number(p.quantity || 1) - Number(p.refundedQty || 0));
+                return qty.gt(0) ? sum.plus(new Decimal(p.price?.toString() || '0').times(qty)) : sum;
+            }, new Decimal(0));
+
+        // Realized parts revenue cannot exceed total ticket revenue
+        const ticketPartsRevenue = Decimal.min(ticketRevenue, rawPartsRevenue);
+
+        // Exact Option A unclamped algebra: PartsProfit + LaborProfit === NetProfit
+        const ticketPartsProfit = ticketPartsRevenue.minus(ticketPartsCost);
+        const ticketLaborRevenue = ticketRevenue.minus(ticketPartsRevenue);
+        const ticketLaborProfit = ticketLaborRevenue.minus(commission);
+        const ticketNetProfit = ticketPartsProfit.plus(ticketLaborProfit);
         
         totalRevenue = totalRevenue.plus(ticketRevenue);
         partsCOGS = partsCOGS.plus(ticketPartsCost);
+        partsRevenue = partsRevenue.plus(ticketPartsRevenue);
+        laborRevenue = laborRevenue.plus(ticketLaborRevenue);
         totalCommissions = totalCommissions.plus(commission);
+        totalPartsProfit = totalPartsProfit.plus(ticketPartsProfit);
+        totalLaborProfit = totalLaborProfit.plus(ticketLaborProfit);
+        totalNetProfit = totalNetProfit.plus(ticketNetProfit);
 
         // Calculate Dues, Paid, and Deferred
         const ticketDues = new Decimal(ticket.initialQuote?.toString() || ticket.repairPrice?.toString() || '0');
@@ -104,17 +133,6 @@ export const getMaintenanceProfitReport = secureAction(async (filters: Maintenan
         }
         totalPaid = totalPaid.plus(ticketPaidVal);
 
-        // Calculate Parts Revenue vs Cost
-        const ticketPartsRevenue = ticket.parts
-            .filter(p => p.product?.itemType !== 'SERVICE' && p.status !== 'SERVICE')
-            .reduce((sum, p) => sum.plus(new Decimal(p.price?.toString() || '0')), new Decimal(0));
-        
-        // Use effective parts revenue to properly split the total repairPrice
-        const effectivePartsRevenue = Decimal.max(ticketPartsRevenue, ticketPartsCost);
-        const ticketLaborRevenue = ticketRevenue.minus(effectivePartsRevenue);
-        
-        laborRevenue = laborRevenue.plus(ticketLaborRevenue);
-
         // Top Selling / Profitable parts & services aggregation
         ticket.parts.forEach(p => {
             if (p.deletedAt) return;
@@ -126,7 +144,7 @@ export const getMaintenanceProfitReport = secureAction(async (filters: Maintenan
             const pCost = new Decimal(p.baseCostPrice?.toString() || p.cost?.toString() || '0').times(qty);
             const pProfit = pRevenue.minus(pCost);
             
-            const isService = p.product?.itemType === 'SERVICE' || p.status === 'SERVICE';
+            const isService = !p.productId || p.product?.itemType === 'SERVICE' || p.status === 'SERVICE';
             const typeLabel = isService ? 'SERVICE' : 'PART';
             
             if (!partsAggregation.has(partName)) {
@@ -182,7 +200,9 @@ export const getMaintenanceProfitReport = secureAction(async (filters: Maintenan
             revenue: ticketRevenue.toNumber(),
             partsCost: ticketPartsCost.toNumber(),
             commission: commission.toNumber(),
-            netProfit: ticketRevenue.minus(ticketPartsCost.plus(commission)).toNumber(),
+            partsProfit: ticketPartsProfit.toNumber(),
+            laborProfit: ticketLaborProfit.toNumber(),
+            netProfit: ticketNetProfit.toNumber(),
             gap: gapDescription,
             status: ticket.status,
             issueDescription: ticket.issueDescription
@@ -208,14 +228,15 @@ export const getMaintenanceProfitReport = secureAction(async (filters: Maintenan
                 totalRevenue: totalRevenue.toNumber(),
                 partsCOGS: partsCOGS.toNumber(),
                 totalCommissions: totalCommissions.toNumber(),
-                laborNetProfit: laborRevenue.minus(totalCommissions).toNumber(),
-                partsNetProfit: totalRevenue.minus(laborRevenue).minus(partsCOGS).toNumber(),
-                totalNetProfit: totalRevenue.minus(partsCOGS.plus(totalCommissions)).toNumber(),
+                laborNetProfit: totalLaborProfit.toNumber(),
+                partsNetProfit: totalPartsProfit.toNumber(),
+                totalNetProfit: totalNetProfit.toNumber(),
                 successRatio: successRatio.toFixed(1),
                 totalDues: totalDues.toNumber(),
                 totalPaid: totalPaid.toNumber(),
                 totalDeferred: totalDeferred.toNumber(),
-                laborRevenue: laborRevenue.toNumber()
+                laborRevenue: laborRevenue.toNumber(),
+                partsRevenue: partsRevenue.toNumber()
             },
             topParts: {
                 selling: topSellingParts,

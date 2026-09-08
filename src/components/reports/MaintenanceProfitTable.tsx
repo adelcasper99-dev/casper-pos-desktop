@@ -51,19 +51,23 @@ export function MaintenanceProfitTable({ tickets }: TableProps) {
 
     const sortedTickets = useMemo(() => {
         return [...tickets].sort((a, b) => {
-            let aValue = a[sortBy];
-            let bValue = b[sortBy];
+            const rawA = a[sortBy];
+            const rawB = b[sortBy];
 
             if (sortBy === 'date') {
-                aValue = new Date(aValue).getTime() as any;
-                bValue = new Date(bValue).getTime() as any;
+                const timeA = new Date(rawA).getTime();
+                const timeB = new Date(rawB).getTime();
+                return sortOrder === 'asc' ? timeA - timeB : timeB - timeA;
             } else if (['revenue', 'partsCost', 'commission', 'netProfit'].includes(sortBy)) {
-                aValue = Number(aValue) as any;
-                bValue = Number(bValue) as any;
+                const numA = Number(rawA);
+                const numB = Number(rawB);
+                return sortOrder === 'asc' ? numA - numB : numB - numA;
             }
 
-            if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
-            if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
+            const strA = String(rawA || '');
+            const strB = String(rawB || '');
+            if (strA < strB) return sortOrder === 'asc' ? -1 : 1;
+            if (strA > strB) return sortOrder === 'asc' ? 1 : -1;
             return 0;
         });
     }, [tickets, sortBy, sortOrder]);
@@ -209,7 +213,10 @@ export function MaintenanceProfitTable({ tickets }: TableProps) {
                             <TableCell className="text-rose-600 dark:text-rose-400/80 font-mono text-[11px] font-black">-{formatCurrency(Number(ticket.partsCost))}</TableCell>
                             <TableCell className="text-fuchsia-600 dark:text-fuchsia-400/80 font-mono text-[11px] font-black">-{formatCurrency(Number(ticket.commission))}</TableCell>
                             <TableCell>
-                                <div className="font-black text-primary text-sm font-mono flex items-center gap-1.5">
+                                <div className={cn(
+                                    "font-black text-sm font-mono flex items-center gap-1.5",
+                                    Number(ticket.netProfit) < 0 ? "text-rose-500" : "text-primary"
+                                )}>
                                     <Wallet className="w-3.5 h-3.5 opacity-30" />
                                     {formatCurrency(Number(ticket.netProfit))}
                                 </div>

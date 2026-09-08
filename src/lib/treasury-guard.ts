@@ -11,6 +11,7 @@ export interface DeductTreasuryResult {
         branchId?: string | null;
     };
     isOverdraft: boolean;
+    auditTag: 'PERMISSION_OVERDRAFT' | 'SETTING_OVERDRAFT' | null;
     previousBalance: Prisma.Decimal;
     newBalance: Prisma.Decimal;
     deductedAmount: Prisma.Decimal;
@@ -21,7 +22,7 @@ export interface DeductTreasuryOptions {
         treasury: {
             updateMany: (args: unknown) => Promise<{ count: number }>;
             update: (args: unknown) => Promise<{ id: string; name: string; balance: Prisma.Decimal; branchId?: string | null }>;
-            findUnique: (args: unknown) => Promise<{ name: string; balance: Prisma.Decimal } | null>;
+            findUnique: (args: unknown) => Promise<{ name?: string; balance?: Prisma.Decimal; tenantId?: string } | null>;
             findUniqueOrThrow: (args: unknown) => Promise<{ id: string; name: string; balance: Prisma.Decimal; branchId?: string | null }>;
         };
         storeSettings: {
@@ -55,7 +56,8 @@ export async function deductTreasuryBalance(
     if (typeof allowOverdraftOverride === 'boolean') {
         allowOverdraft = allowOverdraftOverride;
     } else {
-        const settings = await tx.storeSettings.findFirst();
+        // Scoped automatically to current tenant via prismaTenantExtension on PostgreSQL, single-row on SQLite
+        const settings = await tx.storeSettings.findFirst({});
         allowOverdraft = Boolean(settings?.allowNegativeCash);
     }
 
@@ -102,6 +104,7 @@ export async function deductTreasuryBalance(
         return {
             updatedTreasury: updated,
             isOverdraft: false,
+            auditTag: null,
             previousBalance: new Prisma.Decimal(prevBalDec.toString()),
             newBalance: updated.balance,
             deductedAmount: prismaAmount,
@@ -119,10 +122,14 @@ export async function deductTreasuryBalance(
 
         const newBalDec = new Decimal(updated.balance.toString());
         const prevBalDec = newBalDec.plus(decAmount);
+        const isOverdraft = newBalDec.isNegative();
 
         return {
             updatedTreasury: updated,
-            isOverdraft: newBalDec.isNegative(),
+            isOverdraft,
+            auditTag: isOverdraft
+                ? (allowOverdraftOverride === true ? 'PERMISSION_OVERDRAFT' : 'SETTING_OVERDRAFT')
+                : null,
             previousBalance: new Prisma.Decimal(prevBalDec.toString()),
             newBalance: updated.balance,
             deductedAmount: prismaAmount,

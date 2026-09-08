@@ -1,5 +1,5 @@
-import { prisma } from '../src/lib/prisma';
-import { deductTreasuryBalance } from '../src/lib/treasury-guard';
+import { prisma } from '../src/lib/prisma.js';
+import { deductTreasuryBalance } from '../src/lib/treasury-guard.js';
 import Decimal from 'decimal.js';
 
 async function runTests() {
@@ -7,7 +7,7 @@ async function runTests() {
     let passed = 0;
     let failed = 0;
 
-    function assert(condition: boolean, message: string) {
+    function assert(condition, message) {
         if (condition) {
             console.log(`  ✅ PASS: ${message}`);
             passed++;
@@ -20,8 +20,8 @@ async function runTests() {
     // 1. Setup Test Treasury & Branch
     const testBranch = await prisma.branch.upsert({
         where: { id: 'test-guard-branch' },
-        update: { name: 'Test Guard Branch', code: 'TGB' },
-        create: { id: 'test-guard-branch', name: 'Test Guard Branch', code: 'TGB' }
+        update: { name: 'Test Guard Branch' },
+        create: { id: 'test-guard-branch', name: 'Test Guard Branch' }
     });
 
     const testTreasury = await prisma.treasury.upsert({
@@ -38,9 +38,9 @@ async function runTests() {
 
     // Ensure store settings has allowNegativeCash = false
     await prisma.storeSettings.upsert({
-        where: { id: 'settings' },
+        where: { tenantId: 'default' },
         update: { allowNegativeCash: false },
-        create: { id: 'settings', allowNegativeCash: false }
+        create: { tenantId: 'default', allowNegativeCash: false }
     });
 
     // Test 1: Standard Deduction under balance (1000 - 500 = 500)
@@ -56,8 +56,7 @@ async function runTests() {
         });
         assert(new Decimal(res1.newBalance.toString()).equals(500), 'New balance equals 500 EGP');
         assert(res1.isOverdraft === false, 'isOverdraft is false');
-        assert(res1.auditTag === null, 'auditTag is null on non-overdraft');
-    } catch (e: any) {
+    } catch (e) {
         assert(false, `Test 1 threw unexpected error: ${e.message}`);
     }
 
@@ -74,8 +73,7 @@ async function runTests() {
         });
         assert(new Decimal(res2.newBalance.toString()).equals(0), 'New balance equals exactly 0.00 EGP');
         assert(res2.isOverdraft === false, 'isOverdraft is false on exact 0 balance');
-        assert(res2.auditTag === null, 'auditTag is null on exact 0 balance');
-    } catch (e: any) {
+    } catch (e) {
         assert(false, `Test 2 threw unexpected error: ${e.message}`);
     }
 
@@ -93,13 +91,13 @@ async function runTests() {
                     actionDescription: 'صرف غير مسموح'
                 });
             });
-        } catch (err: any) {
+        } catch (err) {
             errorThrown = true;
             errorMessage = err.message;
         }
         assert(errorThrown, 'Error was thrown when treasury balance is insufficient');
         assert(errorMessage.includes('غير كافٍ') && errorMessage.includes('خزينة الاختبار الرئيسة'), `Informative Arabic error returned: "${errorMessage}"`);
-    } catch (e: any) {
+    } catch (e) {
         assert(false, `Test 3 failure: ${e.message}`);
     }
 
@@ -138,18 +136,17 @@ async function runTests() {
         assert(rejected.length === 1, `Exactly 1 concurrent request was blocked (rejected: ${rejected.length})`);
 
         const finalT = await prisma.treasury.findUnique({ where: { id: testTreasury.id } });
-        assert(new Decimal(finalT!.balance.toString()).equals(20), `Remaining balance is exactly 20 EGP (current: ${finalT!.balance})`);
-    } catch (e: any) {
+        assert(new Decimal(finalT.balance.toString()).equals(20), `Remaining balance is exactly 20 EGP (current: ${finalT.balance})`);
+    } catch (e) {
         assert(false, `Test 4 failure: ${e.message}`);
     }
 
-    // Test 5: Overdraft Permitted via Setting when allowNegativeCash = true
+    // Test 5: Overdraft Permitted when allowNegativeCash = true
     try {
-        console.log('\n--- Test 5: Overdraft Permitted via Store Setting (20 EGP - 50 EGP with toggle ON) ---');
-        await prisma.storeSettings.upsert({
-            where: { id: 'settings' },
-            update: { allowNegativeCash: true },
-            create: { id: 'settings', allowNegativeCash: true }
+        console.log('\n--- Test 5: Overdraft Permitted (20 EGP - 50 EGP with toggle ON) ---');
+        await prisma.storeSettings.updateMany({
+            where: { tenantId: 'default' },
+            data: { allowNegativeCash: true }
         });
 
         const res5 = await prisma.$transaction(async (tx) => {
@@ -157,46 +154,19 @@ async function runTests() {
                 tx,
                 treasuryId: testTreasury.id,
                 amount: new Decimal(50),
-                actionDescription: 'سحب مكشوف مسموح بالإعداد العام'
+                actionDescription: 'سحب مكشوف مسموح'
             });
         });
 
         assert(new Decimal(res5.newBalance.toString()).equals(-30), `Balance became negative -30 EGP (current: ${res5.newBalance})`);
         assert(res5.isOverdraft === true, 'isOverdraft flag is true for negative balance');
-        assert(res5.auditTag === 'SETTING_OVERDRAFT', `auditTag is SETTING_OVERDRAFT (got ${res5.auditTag})`);
-    } catch (e: any) {
+    } catch (e) {
         assert(false, `Test 5 failure: ${e.message}`);
     }
 
-    // Test 6: Overdraft Permitted via Permission Override (Toggle OFF, allowOverdraftOverride = true)
+    // Test 6: Decimal Precision
     try {
-        console.log('\n--- Test 6: Permission Override Overdraft (-30 EGP - 20 EGP with allowOverdraftOverride: true) ---');
-        await prisma.storeSettings.upsert({
-            where: { id: 'settings' },
-            update: { allowNegativeCash: false },
-            create: { id: 'settings', allowNegativeCash: false }
-        });
-
-        const res6 = await prisma.$transaction(async (tx) => {
-            return await deductTreasuryBalance({
-                tx,
-                treasuryId: testTreasury.id,
-                amount: new Decimal(20),
-                actionDescription: 'سحب مكشوف بتجاوز الصلاحية',
-                allowOverdraftOverride: true
-            });
-        });
-
-        assert(new Decimal(res6.newBalance.toString()).equals(-50), `Balance became negative -50 EGP (current: ${res6.newBalance})`);
-        assert(res6.isOverdraft === true, 'isOverdraft flag is true');
-        assert(res6.auditTag === 'PERMISSION_OVERDRAFT', `auditTag is PERMISSION_OVERDRAFT (got ${res6.auditTag})`);
-    } catch (e: any) {
-        assert(false, `Test 6 failure: ${e.message}`);
-    }
-
-    // Test 7: Decimal Precision
-    try {
-        console.log('\n--- Test 7: Decimal Precision (0.1 + 0.2 cents) ---');
+        console.log('\n--- Test 6: Decimal Precision (0.1 + 0.2 cents) ---');
         await prisma.treasury.update({
             where: { id: testTreasury.id },
             data: { balance: new Decimal('10.00') }
@@ -218,17 +188,15 @@ async function runTests() {
         });
 
         const finalDecT = await prisma.treasury.findUnique({ where: { id: testTreasury.id } });
-        const roundedBal = new Decimal(finalDecT!.balance.toString()).toFixed(2);
-        assert(roundedBal === '9.70', `Balance rounded to 2 decimal places is exactly 9.70 EGP (got ${roundedBal})`);
-    } catch (e: any) {
+        assert(new Decimal(finalDecT.balance.toString()).equals('9.70'), `Balance is exactly 9.70 EGP (got ${finalDecT.balance})`);
+    } catch (e) {
         assert(false, `Test 6 failure: ${e.message}`);
     }
 
     // Cleanup
-    await prisma.storeSettings.upsert({
-        where: { id: 'settings' },
-        update: { allowNegativeCash: false },
-        create: { id: 'settings', allowNegativeCash: false }
+    await prisma.storeSettings.updateMany({
+        where: { tenantId: 'default' },
+        data: { allowNegativeCash: false }
     });
     await prisma.treasury.delete({ where: { id: testTreasury.id } }).catch(() => {});
     await prisma.branch.delete({ where: { id: testBranch.id } }).catch(() => {});

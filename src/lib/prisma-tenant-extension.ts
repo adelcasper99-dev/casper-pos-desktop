@@ -135,10 +135,14 @@ export const prismaTenantExtension =
                           async $allOperations({ model, operation, args, query }) {
                               const tenantId = getTenantId();
 
-                              // If tenant context is missing, or is explicitly set to 'SYSTEM' or 'casper-hq' (Super Admin Control Plane), bypass RLS-like filters
-                              // Also bypass if running locally (SQLite/not Postgres in production desktop) because local schema has no tenantId fields
-                              if (!tenantId || tenantId === 'SYSTEM' || tenantId === 'casper-hq' || !isPostgresOrTest) {
+                              // Bypass tenant filters ONLY for explicit Super-Admin control plane or single-tenant local SQLite
+                              if (!isPostgresOrTest || tenantId === 'SYSTEM' || tenantId === 'casper-hq') {
                                   return query(args);
+                              }
+
+                              // Strict Fail-Closed Security: if running in Postgres/Cloud and tenantId is missing on a tenant-aware model
+                              if (!tenantId && TENANT_AWARE_MODELS.includes(model)) {
+                                  throw new Error(`[TENANT_GUARD] Security Violation: Operation '${operation}' on tenant-aware model '${model}' without tenantId context is forbidden. Wrap in runWithTenant() or provide valid x-tenant-id.`);
                               }
 
                               if (TENANT_AWARE_MODELS.includes(model)) {

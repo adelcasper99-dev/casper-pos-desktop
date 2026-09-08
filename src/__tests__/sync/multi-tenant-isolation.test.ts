@@ -49,10 +49,12 @@ describe('Multi-Tenant Isolation & RLS Security', () => {
     beforeEach(async () => {
         await resetTestDB();
         
-        // Clean up tables not covered by resetTestDB
-        await prisma.product.deleteMany({});
-        await prisma.category.deleteMany({});
-        await prisma.user.deleteMany({});
+        // Clean up tables not covered by resetTestDB in SYSTEM context
+        await runWithTenant('SYSTEM', async () => {
+            await prisma.product.deleteMany({});
+            await prisma.category.deleteMany({});
+            await prisma.user.deleteMany({});
+        });
         
         // Setup minimal base data for Tenant A
         await runWithTenant('tenant-A', async () => {

@@ -13,6 +13,7 @@ import { getTranslations } from "@/lib/i18n-mock";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import { EXPENSE_CATEGORY_MAP } from "@/shared/constants/accounting-mappings";
 import { z } from "zod";
+import { deductTreasuryBalance } from "@/lib/treasury-guard";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Rate Limiting Configuration
@@ -204,16 +205,13 @@ export const createExpense = secureAction(async (data: z.infer<typeof CreateExpe
 
         // 3. Update Treasury Balance if linked
         if (validated.treasuryId) {
-            const treasury = await tx.treasury.findUnique({ where: { id: validated.treasuryId } });
-            if (treasury && Number(treasury.balance) < validated.amount) {
-                const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
-                if (!canGoNegative) {
-                    throw new Error(`رصيد الخزنة غير كافٍ (${Number(treasury.balance)}). ولا تملك صلاحية السحب بالسالب.`);
-                }
-            }
-            await tx.treasury.update({
-                where: { id: validated.treasuryId },
-                data: { balance: { decrement: validated.amount } }
+            const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+            await deductTreasuryBalance({
+                tx,
+                treasuryId: validated.treasuryId,
+                amount: validated.amount,
+                actionDescription: "تسجيل المصروف",
+                allowOverdraftOverride: canGoNegative ? true : undefined,
             });
         }
 
@@ -427,17 +425,14 @@ export const addTransaction = secureAction(async (type: string, amount: number, 
                     data: { balance: { increment: amount } }
                 });
             } else {
-                const treasury = await tx.treasury.findUnique({ where: { id: finalTreasuryId } });
-                if (treasury && Number(treasury.balance) < amount) {
-                    const currentUser = await getCurrentUser();
-                    const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
-                    if (!canGoNegative) {
-                        throw new Error(`رصيد الخزنة غير كافٍ (${Number(treasury.balance)}). ولا تملك صلاحية السحب بالسالب.`);
-                    }
-                }
-                await tx.treasury.update({
-                    where: { id: finalTreasuryId },
-                    data: { balance: { decrement: amount } }
+                const currentUser = await getCurrentUser();
+                const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                await deductTreasuryBalance({
+                    tx,
+                    treasuryId: finalTreasuryId,
+                    amount: amount,
+                    actionDescription: description || "المعاملة اليدوية",
+                    allowOverdraftOverride: canGoNegative ? true : undefined,
                 });
             }
         }
@@ -516,10 +511,19 @@ export const updateTransaction = secureAction(async (id: string, data: Prisma.Tr
             // Reverse old impact
             if (oldTreasuryId) {
                 const reversal = isPositive(existing.type) ? -oldAmount : oldAmount;
-                await tx.treasury.update({
-                    where: { id: oldTreasuryId },
-                    data: { balance: { increment: reversal } }
-                });
+                if (reversal < 0) {
+                    await deductTreasuryBalance({
+                        tx,
+                        treasuryId: oldTreasuryId,
+                        amount: Math.abs(reversal),
+                        actionDescription: "تعديل حركة محاسبية (إلغاء التأثير القديم)",
+                    });
+                } else {
+                    await tx.treasury.update({
+                        where: { id: oldTreasuryId },
+                        data: { balance: { increment: reversal } }
+                    });
+                }
             }
 
             // Apply new impact
@@ -528,23 +532,23 @@ export const updateTransaction = secureAction(async (id: string, data: Prisma.Tr
                 const finalType = (data as any).type || existing.type;
                 const forwardImpact = isPositive(finalType) ? newAmount : -newAmount;
 
-                // 🛑 Check for Negative Balance Permission
                 if (forwardImpact < 0) {
-                    const treasury = await tx.treasury.findUnique({ where: { id: newTreasuryId } });
-                    if (treasury && (Number(treasury.balance) + forwardImpact) < 0) {
-                        const { getCurrentUser } = await import('./auth');
-                        const user = await getCurrentUser();
-                        const canGoNegative = hasPermission(user?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
-                        if (!canGoNegative) {
-                            throw new Error(`تحديث العملية سيؤدي إلى رصيد سالب في الخزنة (${Number(treasury.balance) + forwardImpact}). ولا تملك صلاحية السحب بالسالب.`);
-                        }
-                    }
+                    const { getCurrentUser } = await import('./auth');
+                    const user = await getCurrentUser();
+                    const canGoNegative = hasPermission(user?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                    await deductTreasuryBalance({
+                        tx,
+                        treasuryId: newTreasuryId,
+                        amount: Math.abs(forwardImpact),
+                        actionDescription: "تعديل حركة محاسبية (تطبيق التأثير الجديد)",
+                        allowOverdraftOverride: canGoNegative ? true : undefined,
+                    });
+                } else {
+                    await tx.treasury.update({
+                        where: { id: newTreasuryId },
+                        data: { balance: { increment: forwardImpact } }
+                    });
                 }
-
-                await tx.treasury.update({
-                    where: { id: newTreasuryId },
-                    data: { balance: { increment: forwardImpact } }
-                });
             }
         }
 
@@ -589,10 +593,21 @@ export const deleteTransaction = secureAction(async (id: string, reason?: string
             const isPositive = ['IN', 'CAPITAL', 'SALE', 'TICKET', 'CUSTOMER_PAYMENT'].includes(existing.type);
             const reversalAmount = isPositive ? -Number(existing.amount) : Number(existing.amount);
 
-            await tx.treasury.update({
-                where: { id: existing.treasuryId },
-                data: { balance: { increment: reversalAmount } }
-            });
+            if (reversalAmount < 0) {
+                const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                await deductTreasuryBalance({
+                    tx,
+                    treasuryId: existing.treasuryId,
+                    amount: Math.abs(reversalAmount),
+                    actionDescription: "حذف حركة محاسبية",
+                    allowOverdraftOverride: canGoNegative ? true : undefined,
+                });
+            } else {
+                await tx.treasury.update({
+                    where: { id: existing.treasuryId },
+                    data: { balance: { increment: reversalAmount } }
+                });
+            }
         }
 
         // 3. Performing soft delete

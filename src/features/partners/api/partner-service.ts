@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import Decimal from "decimal.js";
 import { GL } from "@/shared/constants/accounting-mappings";
 import { getSession } from "@/lib/auth";
+import { deductTreasuryBalance } from "@/lib/treasury-guard";
 
 /**
  * Creates a new partner and generates their GL accounts.
@@ -85,11 +86,19 @@ export async function createPartnerTransaction(data: { partnerId: string; type: 
             });
 
             // Update Treasury
-            const amountDelta = data.type === "DEPOSIT" ? data.amount : -data.amount;
-            await tx.treasury.update({
-                where: { id: treasury.id },
-                data: { balance: { increment: amountDelta } }
-            });
+            if (data.type === "DEPOSIT") {
+                await tx.treasury.update({
+                    where: { id: treasury.id },
+                    data: { balance: { increment: data.amount } }
+                });
+            } else {
+                await deductTreasuryBalance({
+                    tx,
+                    treasuryId: treasury.id,
+                    amount: data.amount,
+                    actionDescription: `مسحوبات شريك - ${partner.name}`,
+                });
+            }
 
             // Journal Entry
             const lines: { accountCode: string; debit: number; credit: number; description: string }[] = [];

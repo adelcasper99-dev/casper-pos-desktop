@@ -11,6 +11,7 @@ import { financialRepo } from "@/lib/repositories/financial-repo";
 const db = prisma as any;
 import { Decimal } from '@prisma/client/runtime/library';
 import { calculateNetDue, calculateProratedBase, getCategoryClassification } from "@/lib/salary-utils";
+import { deductTreasuryBalance } from "@/lib/treasury-guard";
 
 export const getStaffDirectory = secureAction(async (data?: { month?: number; year?: number }) => {
     const now = new Date();
@@ -22,7 +23,12 @@ export const getStaffDirectory = secureAction(async (data?: { month?: number; ye
     noStore();
 
     const users = await db.user.findMany({
-        where: { deletedAt: null },
+        where: { 
+            deletedAt: null,
+            username: { not: 'SYSTEM_USER' },
+            isGlobalAdmin: false,
+            roleStr: { notIn: ['ADMIN', 'SUPER_ADMIN'] }
+        },
         take: 500, // Safety limit for staff directory
         include: {
             role: true,
@@ -92,7 +98,12 @@ export async function getUsersForAttendancePage() {
     if (!hasAccess) throw new Error("Forbidden");
 
     const users = await db.user.findMany({
-        where: { deletedAt: null },
+        where: { 
+            deletedAt: null,
+            username: { not: 'SYSTEM_USER' },
+            isGlobalAdmin: false,
+            roleStr: { notIn: ['ADMIN', 'SUPER_ADMIN'] }
+        },
         include: { role: true },
         orderBy: { name: 'asc' },
         take: 500 // Safety limit
@@ -227,7 +238,13 @@ export const getHRDashboardSummary = secureAction(async (params?: { month?: numb
     
     // 1. Fetch all active users with minimal schema footprint
     const users = await db.user.findMany({
-        where: { deletedAt: null, isFrozen: false },
+        where: { 
+            deletedAt: null, 
+            isFrozen: false,
+            username: { not: 'SYSTEM_USER' },
+            isGlobalAdmin: false,
+            roleStr: { notIn: ['ADMIN', 'SUPER_ADMIN'] }
+        },
         select: { 
             id: true, 
             salary: true, 
@@ -494,20 +511,13 @@ export const payEmployeeSalary = secureAction(async (data: {
             // 3. Update Treasury for all payment methods (not just CASH)
             // Fix B: treasury deduction should apply regardless of method
             if (data.treasuryId) {
-                const treasury = await tx.treasury.findUnique({ where: { id: data.treasuryId } });
-                if (!treasury) throw new Error("Treasury not found");
-                
-                const balanceDec = new Decimal(treasury.balance.toString());
-                if (balanceDec.lt(amountDec)) {
-                    const canGoNegative = hasPermission(session.user.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
-                    if (!canGoNegative) {
-                        throw new Error("Insufficient treasury balance");
-                    }
-                }
-
-                await tx.treasury.update({
-                    where: { id: data.treasuryId },
-                    data: { balance: { decrement: data.amount } }
+                const canGoNegative = hasPermission(session.user.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+                await deductTreasuryBalance({
+                    tx,
+                    treasuryId: data.treasuryId,
+                    amount: data.amount,
+                    actionDescription: "سداد الراتب / السلفة",
+                    allowOverdraftOverride: canGoNegative ? true : undefined,
                 });
 
                 await (tx as any).transaction.create({

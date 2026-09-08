@@ -30,6 +30,7 @@ interface StoreSettingsData {
     autoPrintTicket?: boolean;
     autoPrintEngineerCopy?: boolean;
     allowNegativeStock?: boolean;
+    allowNegativeCash?: boolean;
     blindCloseEnabled?: boolean;
     bridgeIpAddress?: string;
 }
@@ -499,6 +500,17 @@ export default function StoreConfig({ settings, hideModules = false }: { setting
                                                 className="scale-75"
                                                 checked={form.allowNegativeStock || false}
                                                 onCheckedChange={(c) => handleChange('allowNegativeStock', c)}
+                                            />
+                                        </div>
+                                        <div className="flex items-center justify-between p-1.5 rounded-lg border border-border/30 bg-card/50">
+                                            <div className="pr-1">
+                                                <span className="text-[11px] font-bold text-foreground block leading-tight">{t('allowNegativeCash')}</span>
+                                                <span className="text-[9px] text-muted-foreground">{t('allowNegativeCashDesc')}</span>
+                                            </div>
+                                            <Switch
+                                                className="scale-75"
+                                                checked={form.allowNegativeCash || false}
+                                                onCheckedChange={(c) => handleChange('allowNegativeCash', c)}
                                             />
                                         </div>
                                         <div className="flex items-center justify-between p-1.5 rounded-lg border border-border/30 bg-card/50">

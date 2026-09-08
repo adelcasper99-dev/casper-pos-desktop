@@ -40,9 +40,9 @@ export function MaintenanceProfitKPIs({ data }: KPIProps) {
             title: "صافي ربح القطع",
             value: formatCurrency(Number(data.partsNetProfit)),
             icon: TrendingUp,
-            color: "text-orange-500",
-            bg: "bg-orange-500/10",
-            glow: "shadow-orange-500/10"
+            color: Number(data.partsNetProfit) < 0 ? "text-rose-500" : "text-orange-500",
+            bg: Number(data.partsNetProfit) < 0 ? "bg-rose-500/10" : "bg-orange-500/10",
+            glow: Number(data.partsNetProfit) < 0 ? "shadow-rose-500/10" : "shadow-orange-500/10"
         },
         {
             title: "عمولات المهندسين",
@@ -56,9 +56,9 @@ export function MaintenanceProfitKPIs({ data }: KPIProps) {
             title: "ربح الصيانة (صافي)",
             value: formatCurrency(Number(data.laborNetProfit)),
             icon: Briefcase,
-            color: "text-emerald-500",
-            bg: "bg-emerald-500/10",
-            glow: "shadow-emerald-500/10"
+            color: Number(data.laborNetProfit) < 0 ? "text-rose-500" : "text-emerald-500",
+            bg: Number(data.laborNetProfit) < 0 ? "bg-rose-500/10" : "bg-emerald-500/10",
+            glow: Number(data.laborNetProfit) < 0 ? "shadow-rose-500/10" : "shadow-emerald-500/10"
         },
         {
             title: "نسبة النجاح",
@@ -73,9 +73,9 @@ export function MaintenanceProfitKPIs({ data }: KPIProps) {
             value: formatCurrency(Number(data.totalNetProfit)),
             icon: TrendingUp,
             color: "text-white",
-            bg: "bg-primary",
+            bg: Number(data.totalNetProfit) < 0 ? "bg-rose-600" : "bg-primary",
             highlight: true,
-            glow: "shadow-primary/30"
+            glow: Number(data.totalNetProfit) < 0 ? "shadow-rose-600/30" : "shadow-primary/30"
         }
     ];
 

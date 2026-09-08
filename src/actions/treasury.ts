@@ -8,6 +8,7 @@ import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import { getCurrentUser } from "./auth";
 import { getCurrentShiftInternal } from "./shift-management-actions";
 import { Decimal } from "@prisma/client/runtime/library";
+import { deductTreasuryBalance } from "@/lib/treasury-guard";
 
 // ─── Get Cash Categories ──────────────────────────────────────────────────────
 export async function getCashCategories() {
@@ -247,29 +248,20 @@ export async function addTreasuryTransaction(
       });
 
       if (finalTreasuryId) {
-        // AC-01: Atomic Balance Update (Race Condition Prevention)
         const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
-        
-        const updateWhere: any = { id: finalTreasuryId };
-        if (!isPositive && !canGoNegative) {
-            updateWhere.balance = { gte: decimalAmount };
-        }
-
-        try {
+        if (isPositive) {
           await tx.treasury.update({
-            where: updateWhere,
-            data: {
-              balance: isPositive
-                ? { increment: decimalAmount }
-                : { decrement: decimalAmount },
-            },
+            where: { id: finalTreasuryId },
+            data: { balance: { increment: decimalAmount } },
           });
-        } catch (err: any) {
-          // P2025 happens if where condition (including balance check) fails
-          if (err.code === 'P2025') {
-            throw new Error("فشل تحديث الرصيد: رصيد غير كافٍ أو تم تغييره من قبل مستخدم آخر.");
-          }
-          throw err;
+        } else {
+          await deductTreasuryBalance({
+            tx,
+            treasuryId: finalTreasuryId,
+            amount: decimalAmount,
+            actionDescription: "المعاملة اليدوية",
+            allowOverdraftOverride: canGoNegative ? true : undefined,
+          });
         }
       }
 
@@ -417,31 +409,20 @@ export async function deleteTreasuryTransaction(id: string, reason: string) {
 
       // 3. Reverse the physical balance if the transaction belongs to a treasury
       if (existing.treasuryId && absAmount.gt(0)) {
-        // AC-01: Atomic Balance Check (Race Condition Prevention)
         const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
-        
-        const updateWhere: any = { id: existing.treasuryId };
-        
-        // If we are deleting income, the balance will DECREASE.
-        // We must ensure the treasury has enough balance to support this decrease if negative is not allowed.
-        if (isIncome && !canGoNegative) {
-            updateWhere.balance = { gte: absAmount };
-        }
-
-        try {
-          await tx.treasury.update({
-            where: updateWhere,
-            data: {
-              balance: isIncome
-                ? { decrement: absAmount }  // Was income -> remove it (Atomic decrease)
-                : { increment: absAmount }, // Was expense -> add it back
-            },
+        if (isIncome) {
+          await deductTreasuryBalance({
+            tx,
+            treasuryId: existing.treasuryId,
+            amount: absAmount,
+            actionDescription: "إلغاء المعاملة",
+            allowOverdraftOverride: canGoNegative ? true : undefined,
           });
-        } catch (err: any) {
-          if (err.code === 'P2025') {
-            throw new Error(`تعذر الحذف: رصيد الخزنة غير كافٍ لإتمام عملية الاسترجاع (${absAmount.toFixed(2)}).`);
-          }
-          throw err;
+        } else {
+          await tx.treasury.update({
+            where: { id: existing.treasuryId },
+            data: { balance: { increment: absAmount } },
+          });
         }
       }
 
@@ -646,20 +627,13 @@ export async function transferBetweenTreasuries(data: {
     await prisma.$transaction(async (tx) => {
       // 1. Deduct from source with Atomic check
       const canGoNegative = hasPermission(currentUser?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
-      const updateWhere: any = { id: data.fromTreasuryId };
-      if (!canGoNegative) {
-          updateWhere.balance = { gte: amountDec };
-      }
-
-      try {
-        await tx.treasury.update({
-          where: updateWhere,
-          data: { balance: { decrement: amountDec } },
-        });
-      } catch (err: any) {
-        if (err.code === 'P2025') throw new Error("فشل الخصم من المصدر: رصيد غير كافٍ أو تم تغيير الرصيد.");
-        throw err;
-      }
+      await deductTreasuryBalance({
+        tx,
+        treasuryId: data.fromTreasuryId,
+        amount: amountDec,
+        actionDescription: "تحويل الخزينة",
+        allowOverdraftOverride: canGoNegative ? true : undefined,
+      });
       const sourceTx = await tx.transaction.create({
         data: {
           type: "TRANSFER_OUT",

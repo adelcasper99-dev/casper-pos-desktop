@@ -9,6 +9,7 @@ import { getTranslations } from "@/lib/i18n-mock";
 import { Decimal } from "@prisma/client/runtime/library";
 import { toDecimal, toNumber } from "@/lib/decimal-utils";
 import { PAYMENT_METHOD_GL_MAP } from '@/shared/constants/accounting-mappings';
+import { deductTreasuryBalance } from '@/lib/treasury-guard';
 
 /**
  * Inter-HQ Fund Transfer Action
@@ -88,10 +89,14 @@ export const transferFundsBetweenHQs = secureAction(async (data: z.infer<typeof 
 
     // Execute transfer in transaction
     await prisma.$transaction(async (tx) => {
-        // Deduct from source treasury
-        await tx.treasury.update({
-            where: { id: fromTreasuryId },
-            data: { balance: { decrement: amountDec } }
+        // Deduct from source treasury with atomic guard
+        const canGoNegative = hasPermission(user?.permissions, PERMISSIONS.TREASURY_ALLOW_NEGATIVE_BALANCE);
+        await deductTreasuryBalance({
+            tx,
+            treasuryId: fromTreasuryId,
+            amount: amountDec,
+            actionDescription: "تحويل بين الفروع",
+            allowOverdraftOverride: canGoNegative ? true : undefined,
         });
 
         // Add to destination treasury
