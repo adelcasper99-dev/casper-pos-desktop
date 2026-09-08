@@ -1,9 +1,11 @@
 
-import { prisma } from '@/lib/prisma';
+import { prisma, type PrismaTransactionClient } from '@/lib/prisma';
 import { Decimal } from '@prisma/client/runtime/library';
-import { Account, JournalEntry } from '@prisma/client';
+import { Account, JournalEntry, Prisma } from '@prisma/client';
 import { validateDoubleEntryBalance } from './validation';
 import { GL, PAYMENT_METHOD_GL_MAP } from '@/shared/constants/accounting-mappings';
+
+export type DbClient = PrismaTransactionClient | Prisma.TransactionClient | typeof prisma;
 
 // ── BL-08: Use Decimal throughout to prevent floating-point accumulation ──────
 // Previously: sum + line.debit (JS number → 0.1 + 0.2 = 0.30000000004)
@@ -46,8 +48,8 @@ export class AccountingEngine {
         ticketId?: string;
         transactionId?: string;
         idempotencyKey?: string;
-    }, tx?: any) {
-        const db = tx || prisma;
+    }, tx?: DbClient) {
+        const db = (tx || prisma) as typeof prisma;
 
         // ── Phase 1: Balance Validation ───────────────────
         const validation = validateDoubleEntryBalance(data.lines);
@@ -63,12 +65,24 @@ export class AccountingEngine {
 
         // ⭐ AUTO-SEED: If accounts are missing, attempt to seed them (Defensive)
         if (accounts.length < uniqueCodes.length) {
-            const foundCodes = new Set(accounts.map((a: { code: string }) => a.code));
-            const missing = uniqueCodes.filter(c => !foundCodes.has(c));
-            throw new Error(
-                `CRITICAL: GL Accounts not seeded: [${missing.join(', ')}]. ` +
-                `Ensure db-init.ts ran seedAccounts() at startup.`
-            );
+            try {
+                const { seedAccounts } = await import('./seed-accounts');
+                await seedAccounts(db);
+                accounts = await db.account.findMany({
+                    where: { code: { in: uniqueCodes } }
+                });
+            } catch (seedErr) {
+                console.warn('[TransactionFactory] Auto-seed failed:', seedErr);
+            }
+
+            if (accounts.length < uniqueCodes.length) {
+                const foundCodes = new Set(accounts.map((a: { code: string }) => a.code));
+                const missing = uniqueCodes.filter(c => !foundCodes.has(c));
+                throw new Error(
+                    `CRITICAL: GL Accounts not seeded: [${missing.join(', ')}]. ` +
+                    `Ensure db-init.ts ran seedAccounts() at startup.`
+                );
+            }
         }
 
         const accountMap = new Map(accounts.map((a: { code: string; id: string }) => [a.code, a.id]));
@@ -97,8 +111,9 @@ export class AccountingEngine {
                     }
                 }
             });
-        } catch (error: any) {
-            if (error.code === 'P2002' && data.idempotencyKey) {
+        } catch (error: unknown) {
+            const err = error as { code?: string };
+            if (err?.code === 'P2002' && data.idempotencyKey) {
                 console.warn(`[AccountingEngine] Idempotency collision for key: ${data.idempotencyKey}. Returning existing journal.`);
                 const existing = await db.journalEntry.findUnique({
                     where: { idempotencyKey: data.idempotencyKey },
@@ -116,8 +131,8 @@ export class AccountingEngine {
      * @param idempotencyKey Key to prevent duplicate reversals
      * @param tx Optional Prisma transaction
      */
-    static async reverseJournalEntry(originalId: string, idempotencyKey: string, tx?: any) {
-        const db = tx || prisma;
+    static async reverseJournalEntry(originalId: string, idempotencyKey: string, tx?: DbClient) {
+        const db = (tx || prisma) as typeof prisma;
 
         const original = await db.journalEntry.findUnique({
             where: { id: originalId },
@@ -127,7 +142,7 @@ export class AccountingEngine {
         if (!original) throw new Error(`JournalEntry not found: ${originalId}`);
 
         // Validate the reversed entry is balanced
-        const reversedLines = original.lines.map((line: any) => ({
+        const reversedLines = original.lines.map((line: { accountId: string; debit: Decimal | number | string; credit: Decimal | number | string; description?: string | null }) => ({
             accountId: line.accountId,
             debit: line.credit, // swap
             credit: line.debit, // swap
@@ -152,8 +167,9 @@ export class AccountingEngine {
                     }
                 }
             });
-        } catch (error: any) {
-            if (error.code === 'P2002' && idempotencyKey) {
+        } catch (error: unknown) {
+            const err = error as { code?: string };
+            if (err?.code === 'P2002' && idempotencyKey) {
                 console.warn(`[AccountingEngine] Idempotency collision for reversal key: ${idempotencyKey}. Returning existing journal.`);
                 const existing = await db.journalEntry.findUnique({
                     where: { idempotencyKey },
@@ -172,7 +188,7 @@ export class AccountingEngine {
         cogsAmount: number | Decimal = 0,
         taxAmount: number | Decimal = 0,
         branchId?: string,
-        tx?: any
+        tx?: DbClient
     ) {
         // Gross revenue is net paid + discount - tax
         // 🛡️ Safe Decimal construction: use String conversion to reject NaN and avoid
@@ -184,43 +200,66 @@ export class AccountingEngine {
         const grossRevenue = netRevenue.add(new Decimal(discountAmount)).sub(new Decimal(taxAmount));
 
         const debitLines: TransactionLineInput[] = payments.map(p => {
-            const accountCode = PAYMENT_METHOD_GL_MAP[p.method];
-            if (!accountCode) throw new Error(`GL Account not mapped for payment method: ${p.method}`);
+            const code = PAYMENT_METHOD_GL_MAP[p.method] || GL.ASSETS.CASH;
             return {
-                accountCode,
-                debit: p.amount, // Decimal/String/Number - will be handled by recordTransaction
+                accountCode: code,
+                debit: new Decimal(String(p.amount)),
                 credit: 0,
-                description: `${p.method} received`,
+                description: `Payment via ${p.method}`,
             };
         });
 
-        const lines: TransactionLineInput[] = [
-            ...debitLines,
-            { accountCode: GL.REVENUE.SALES, debit: 0, credit: grossRevenue, description: 'Sales Revenue (ex-tax)' }
-        ];
-
-        // ── B2: Add Tax Journalization ──
-        if (new Decimal(taxAmount).gt(0)) {
-            lines.push({ accountCode: GL.LIABILITIES.VAT_OUTPUT, debit: 0, credit: taxAmount, description: 'Sales Tax Payable' });
-        }
-
-        // ── Phase 2.1: Add Discounts ──
+        // 2. Line 3: Discount Expense (Debit) if applicable
+        const lines: TransactionLineInput[] = [...debitLines];
         if (new Decimal(discountAmount).gt(0)) {
-            lines.push({ accountCode: GL.REVENUE.DISCOUNTS, debit: discountAmount, credit: 0, description: 'Sales Discounts' });
+            lines.push({
+                accountCode: GL.REVENUE.DISCOUNTS,
+                debit: new Decimal(discountAmount),
+                credit: 0,
+                description: 'Sales Discount Allowed',
+            });
         }
 
-        // ── Phase 2.1: Add COGS and Inventory Deduction ──
+        // 3. Line 4: Sales Revenue (Credit) = gross ex-tax revenue
+        lines.push({
+            accountCode: GL.REVENUE.SALES,
+            debit: 0,
+            credit: grossRevenue,
+            description: 'Sales Revenue',
+        });
+
+        // 4. Line 5: Output VAT / Sales Tax (Credit) if applicable
+        if (new Decimal(taxAmount).gt(0)) {
+            lines.push({
+                accountCode: GL.LIABILITIES.VAT_OUTPUT,
+                debit: 0,
+                credit: new Decimal(taxAmount),
+                description: 'Output VAT on Sales',
+            });
+        }
+
+        // 5. Lines 6 & 7: COGS Entry (Perpetual Inventory System)
         if (new Decimal(cogsAmount).gt(0)) {
-            lines.push({ accountCode: GL.EXPENSES.COGS, debit: cogsAmount, credit: 0, description: 'Cost of Goods Sold' });
-            lines.push({ accountCode: GL.ASSETS.INVENTORY, debit: 0, credit: cogsAmount, description: 'Inventory Asset (Out)' });
+            lines.push({
+                accountCode: GL.EXPENSES.COGS,
+                debit: new Decimal(cogsAmount),
+                credit: 0,
+                description: 'Cost of Goods Sold',
+            });
+            lines.push({
+                accountCode: GL.ASSETS.INVENTORY,
+                debit: 0,
+                credit: new Decimal(cogsAmount),
+                description: 'Inventory Reduction from Sale',
+            });
         }
 
         return this.recordTransaction({
-            description: `Sale #${saleId}`,
+            description: `POS Sale #${saleId.slice(0, 8)}`,
             reference: saleId,
             branchId,
             saleId,
-            lines
+            lines,
         }, tx);
     }
 
@@ -234,7 +273,7 @@ export class AccountingEngine {
         paidAmount: number | Decimal,
         taxAmount: number | Decimal = 0,
         branchId?: string,
-        tx?: any
+        tx?: DbClient
     ) {
         const amount = new Decimal(totalInvoiceValue);
         const tax = new Decimal(taxAmount);
@@ -269,7 +308,7 @@ export class AccountingEngine {
     /**
      * Helper: Record an Expense (Cash)
      */
-    static async recordExpense(expenseId: string, amount: number | Decimal, description: string, branchId?: string, tx?: any) {
+    static async recordExpense(expenseId: string, amount: number | Decimal, description: string, branchId?: string, tx?: DbClient) {
         const cost = new Decimal(amount);
         if (cost.lte(0)) throw new Error(`[AccountingEngine] recordExpense: invalid amount ${amount}`);
         return this.recordTransaction({
@@ -298,7 +337,7 @@ export class AccountingEngine {
         cogsReversal?: number | Decimal;
         spoilageAmount?: number | Decimal;
         branchId?: string;
-    }, tx?: any) {
+    }, tx?: DbClient) {
         const { amount, method, description, reference, saleId, ticketId, cogsReversal, spoilageAmount, branchId } = data;
         const absAmount = new Decimal(amount).abs();
         const accountCode = PAYMENT_METHOD_GL_MAP[method];
@@ -358,7 +397,7 @@ export class AccountingEngine {
         branchId?: string;
         shiftId?: string;
         isSync?: boolean;
-    }, tx?: any) {
+    }, tx?: DbClient) {
         const { amount, method, description, reference, ticketId, branchId, shiftId, isSync } = data;
         
         // B18 Fix: Sync Safety Guard
@@ -391,7 +430,7 @@ export class AccountingEngine {
         partsCost: number | Decimal;
         barcode: string;
         branchId?: string;
-    }, tx?: any) {
+    }, tx?: DbClient) {
         const { ticketId, partsCost, barcode, branchId } = data;
         const cost = new Decimal(partsCost);
         if (cost.lte(0)) return null;
@@ -424,9 +463,9 @@ export class AccountingEngine {
         items: { productId: string; quantity: number | Decimal; unitCost: number | Decimal; isDamaged?: boolean }[];
         reason?: string;
         branchId?: string;
-    }, tx?: any) {
+    }, tx?: DbClient) {
         const { totalRefund, cashPortion, arPortion, walletPortion, taxAmount, items, returnSaleId, saleId, reason, branchId } = data;
-        const db = tx || prisma;
+        const db = (tx || prisma) as typeof prisma;
 
         // 1. Core Revenue Reversal — split tax from revenue
         const totalRefundDec = new Decimal(totalRefund);
@@ -470,7 +509,7 @@ export class AccountingEngine {
             where: { id: { in: productIds } },
             select: { id: true, itemType: true }
         });
-        const productTypeMap = new Map(products.map((p: any) => [p.id, p.itemType]));
+        const productTypeMap = new Map(products.map((p: { id: string; itemType: string | null }) => [p.id, p.itemType]));
 
         let totalCogsReversal = new Decimal(0);
         let totalSpoilage = new Decimal(0);
@@ -534,7 +573,7 @@ export class AccountingEngine {
         amount: number | Decimal;
         description: string;
         branchId?: string;
-    }, tx?: any) {
+    }, tx?: DbClient) {
         const amount = new Decimal(data.amount);
         const lines: TransactionLineInput[] = [
             { accountCode: GL.EXPENSES.SPOILAGE, debit: amount, credit: 0, description: 'Inventory Wastage/Shrinkage' },
@@ -557,7 +596,7 @@ export class AccountingEngine {
         amount: number | Decimal;
         description: string;
         branchId?: string;
-    }, tx?: any) {
+    }, tx?: DbClient) {
         const amount = new Decimal(data.amount);
         const lines: TransactionLineInput[] = [
             { accountCode: GL.ASSETS.INVENTORY, debit: amount, credit: 0, description: 'Inventory Asset Increased' },

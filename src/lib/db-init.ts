@@ -12,6 +12,7 @@
 
 import { prisma } from './prisma';
 import { logger } from './logger';
+import { runWithTenant } from './prisma-tenant-extension';
 
 // ── V-05: Use globalThis to survive Next.js dev hot-reloads ────────────
 const globalForDbInit = globalThis as unknown as { dbInitialized: boolean };
@@ -29,80 +30,65 @@ export async function initDatabase(): Promise<void> {
         const isPostgres = process.env.DATABASE_URL?.startsWith('postgres');
 
         if (!isPostgres) {
-            // ── WAL mode (returns 'wal' string, so use $queryRaw to avoid 'Execute returned results' error) ────
+            // ── WAL mode
             await prisma.$queryRawUnsafe('PRAGMA journal_mode=WAL;');
-
-            // ── Foreign key enforcement (doesn't return data) ────────────────
+            // ── Foreign key enforcement
             await prisma.$executeRawUnsafe('PRAGMA foreign_keys=ON;');
-
-            // ── Synchronous: NORMAL (doesn't return data) ─
+            // ── Synchronous: NORMAL
             await prisma.$executeRawUnsafe('PRAGMA synchronous=NORMAL;');
-
-            // ── Database Health Check ────────────────────────────────────────
-            logger.info('[DB] Running health check...');
-            const integrityCheck = await prisma.$queryRawUnsafe('PRAGMA integrity_check;');
-            if (Array.isArray(integrityCheck) && integrityCheck[0]?.integrity_check !== 'ok') {
-                logger.error('[DB] Integrity check failed', integrityCheck);
-                // In a real desktop app, we might trigger a recovery or alert here
-            } else {
-                logger.info('[DB] Integrity check passed.');
-            }
 
             logger.info('[DB] SQLite pragmas set: WAL mode, foreign_keys=ON, synchronous=NORMAL');
         } else {
             logger.info('[DB] PostgreSQL detected, skipping SQLite PRAGMA initialization.');
         }
 
-        // ── Seed / Sync Chart of Accounts (BL-09 fix: ensures system accounts exist on every startup)
-        logger.info('[DB] Ensuring system accounts exist...');
         const { seedAccounts } = await import('./accounting/seed-accounts');
-        await seedAccounts();
-        logger.info('[DB] Chart of Accounts sync complete.');
-
-        // ── Seed / Sync Cash Categories (Dynamic Cash Control)
-        logger.info('[DB] Ensuring cash categories exist...');
         const { seedCashCategories } = await import('./accounting/seed-cash-categories');
-        await seedCashCategories();
-        logger.info('[DB] Cash Categories sync complete.');
-
-        // ── Ensure Store Settings (Crucial for production render safety)
-        logger.info('[DB] Ensuring default store settings exist...');
-        let settings = await prisma.storeSettings.findFirst({});
-        if (!settings) {
-            settings = await prisma.storeSettings.create({
-                data: {
-                    tenantId: "default",
-                    name: "Casper Store",
-                    currency: "EGP",
-                    taxRate: 0.0
-                }
-            });
-            logger.info('[DB] Default store settings created.');
-        }
-
-        // ── Ensure Main Branch (V-05 fix: run once at startup, not on every login)
         const { ensureMainBranch } = await import('./ensure-main-branch');
-        await ensureMainBranch();
 
-        // ── Orphan Purge (Permanent Fix: runs once at startup) ───────────────
-        // Removes any treasury/warehouse records whose branchId no longer exists.
-        // This is a safety net for data created before the onDelete: Cascade was applied.
-        const validBranches = await prisma.branch.findMany({ select: { id: true } });
-        const validBranchIds = validBranches.map(b => b.id);
-
-        if (validBranchIds.length > 0) {
-            const orphanedTreasuries = await prisma.treasury.deleteMany({
-                where: { branchId: { notIn: validBranchIds } }
-            });
-            const orphanedWarehouses = await prisma.warehouse.deleteMany({
-                where: { branchId: { notIn: validBranchIds } }
-            });
-            if (orphanedTreasuries.count > 0 || orphanedWarehouses.count > 0) {
-                logger.warn(`[DB] Orphan purge: removed ${orphanedTreasuries.count} treasuries, ${orphanedWarehouses.count} warehouses.`);
+        // Determine list of tenant IDs to seed
+        let tenantIds = ['default'];
+        if (isPostgres) {
+            try {
+                // Read distinct tenants from Tenant table using SYSTEM context
+                const tenants = await runWithTenant('SYSTEM', async () => {
+                    return await prisma.tenant.findMany({ select: { id: true, slug: true } });
+                });
+                if (tenants && tenants.length > 0) {
+                    tenantIds = Array.from(new Set(['default', ...tenants.map(t => t.slug || t.id)]));
+                }
+            } catch (e) {
+                logger.warn('[DB] Could not list tenants from Tenant table, defaulting to ["default"]', e);
             }
         }
+
+        for (const tenantId of tenantIds) {
+            await runWithTenant(tenantId, async () => {
+                // ── Seed / Sync Chart of Accounts
+                await seedAccounts();
+
+                // ── Seed / Sync Cash Categories
+                await seedCashCategories();
+
+                // ── Ensure Store Settings
+                let settings = await prisma.storeSettings.findFirst({});
+                if (!settings) {
+                    await prisma.storeSettings.create({
+                        data: {
+                            tenantId: tenantId,
+                            name: "Casper Store",
+                            currency: "EGP",
+                            taxRate: 0.0
+                        }
+                    });
+                }
+
+                // ── Ensure Main Branch
+                await ensureMainBranch();
+            });
+        }
+        logger.info(`[DB] Initialization and GL account seeding completed for tenants: ${tenantIds.join(', ')}`);
     } catch (err) {
         logger.error('[DB] initDatabase failed', err);
-        // Non-fatal — app can still serve requests, just with reduced safety guarantees
     }
 }
