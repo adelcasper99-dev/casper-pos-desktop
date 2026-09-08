@@ -102,10 +102,11 @@ model User {
 model Role {
   id          String @id @default(uuid())
   tenantId String @default("default") // MULTITENANT_FIELD
-  name        String @unique
+  name        String
   permissions String @default("[]")
   users       User[]
 
+  @@unique([tenantId, name])
   @@index([tenantId])
 }
 
@@ -236,7 +237,7 @@ model Supplier {
   id               String            @id @default(uuid())
   tenantId String @default("default") // MULTITENANT_FIELD
   name             String
-  phone            String?           @unique
+  phone            String?
   email            String?
   address          String?
   balance          Decimal           @default(0.00)
@@ -247,6 +248,7 @@ model Supplier {
   payments         SupplierPayment[]
   clientTickets    Ticket[]          @relation("ClientSupplier")
 
+  @@unique([tenantId, phone])
   @@index([tenantId])
 }
 
@@ -258,12 +260,16 @@ model SupplierPayment {
   notes          String?
   paymentDate    DateTime       @default(now())
   method         String         @default("CASH")
+  reference      String?
+  createdBy      String?
+  createdAt      DateTime       @default(now())
   branchId       String?
-  journalEntries JournalEntry[]
   branch         Branch?        @relation(fields: [branchId], references: [id])
   supplier       Supplier       @relation(fields: [supplierId], references: [id])
+  journalEntries JournalEntry[]
 
   @@index([supplierId])
+  @@index([paymentDate])
   @@index([branchId])
   @@index([tenantId])
 }
@@ -271,7 +277,7 @@ model SupplierPayment {
 model Account {
   id           String        @id @default(uuid())
   tenantId String @default("default") // MULTITENANT_FIELD
-  code         String        @unique
+  code         String
   name         String
   type         String
   description  String?
@@ -280,6 +286,7 @@ model Account {
   updatedAt    DateTime      @updatedAt
   journalLines JournalLine[]
 
+  @@unique([tenantId, code])
   @@index([tenantId])
 }
 
