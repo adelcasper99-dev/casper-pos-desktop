@@ -1,16 +1,19 @@
 
-import { prisma } from '@/lib/prisma';
+import { prisma, type PrismaTransactionClient } from '@/lib/prisma';
+import { type Prisma } from '@prisma/client';
 import { DEFAULT_ACCOUNTS } from './constants';
 
-export async function seedAccounts(tx?: any) {
-    const client = tx || prisma;
+type DbClient = PrismaTransactionClient | Prisma.TransactionClient | typeof prisma;
+
+export async function seedAccounts(tx?: DbClient) {
+    const client = (tx || prisma) as typeof prisma;
     console.log('Seeding default accounts...');
 
     try {
         const existing = await client.account.findMany({
             select: { code: true }
         });
-        const existingCodes = new Set(existing.map((a: any) => a.code));
+        const existingCodes = new Set(existing.map((a: { code: string }) => a.code));
         const missing = DEFAULT_ACCOUNTS.filter(acc => !existingCodes.has(acc.code));
 
         if (missing.length === 0) {
