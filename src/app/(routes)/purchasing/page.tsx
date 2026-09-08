@@ -5,6 +5,7 @@ import { getCSRFToken } from '@/lib/csrf';
 import { getVisibleBranches } from "@/actions/branch-actions";
 import { getCurrentUser } from "@/actions/auth";
 import { ShoppingCart } from "lucide-react";
+import { toNumber } from "@/lib/decimal-utils";
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +29,7 @@ export default async function PurchasingPage() {
         phone: s.phone,
         email: s.email,
         address: s.address,
-        balance: s.balance.toNumber()
+        balance: toNumber(s.balance)
     }));
 
     // 2. Categories (for Add Product modal in Purchase)
@@ -44,7 +45,7 @@ export default async function PurchasingPage() {
     });
     const units = unitsRaw.map(u => ({
         ...u,
-        conversionFactor: (u.conversionFactor as any).toNumber?.() ?? Number(u.conversionFactor)
+        conversionFactor: toNumber(u.conversionFactor)
     }));
 
     // 2.2 Attributes
@@ -63,12 +64,12 @@ export default async function PurchasingPage() {
         id: p.id,
         sku: p.sku,
         name: p.name,
-        stock: p.stock,
+        stock: toNumber(p.stock),
         categoryId: p.categoryId,
-        costPrice: p.costPrice.toNumber(),
-        sellPrice: p.sellPrice.toNumber(),
-        sellPrice2: p.sellPrice2?.toNumber() || 0,
-        sellPrice3: p.sellPrice3?.toNumber() || 0,
+        costPrice: toNumber(p.costPrice),
+        sellPrice: toNumber(p.sellPrice),
+        sellPrice2: toNumber(p.sellPrice2),
+        sellPrice3: toNumber(p.sellPrice3),
         unitOfMeasureId: p.unitOfMeasureId,
         modelId: p.modelId,
         attributeId: p.attributeId,
@@ -88,14 +89,13 @@ export default async function PurchasingPage() {
         status: inv.status,
         purchaseDate: inv.createdAt,
         supplier: {
-            name: inv.supplier.name,
+            name: inv.supplier?.name || '',
         },
-        totalAmount: inv.totalAmount.toNumber(),
-        paidAmount: inv.paidAmount.toNumber(),
-        deliveryCharge: inv.deliveryCharge.toNumber(),
+        totalAmount: toNumber(inv.totalAmount),
+        paidAmount: toNumber(inv.paidAmount),
+        deliveryCharge: toNumber(inv.deliveryCharge),
     }));
 
-    // 5. Warehouses
     // 5. Warehouses
     // Filter warehouses for non-HQ users server-side as well for initial load
     const isHQ = (user?.role?.toUpperCase() === 'ADMIN') || (user?.role?.toUpperCase() === 'MANAGER') || user?.branchType === 'CENTER';
@@ -115,9 +115,9 @@ export default async function PurchasingPage() {
         isDefault: w.isDefault,
         branchId: w.branchId,
         branch: {
-            id: w.branch.id,
-            name: w.branch.name,
-            code: w.branch.code
+            id: w.branch?.id || '',
+            name: w.branch?.name || '',
+            code: w.branch?.code || ''
         }
     }));
     
@@ -129,7 +129,7 @@ export default async function PurchasingPage() {
     const treasuries = treasuriesRaw.map(t => ({
         id: t.id,
         name: t.name,
-        balance: t.balance.toNumber()
+        balance: toNumber(t.balance)
     }));
 
     return (

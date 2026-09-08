@@ -1,131 +1,114 @@
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/actions/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 import { getTranslations } from "@/lib/i18n-mock";
 import { getCSRFToken } from "@/lib/csrf";
-import { ArrowLeft, Phone, Mail, MapPin, Wallet, TrendingUp, History, Receipt, CreditCard } from "lucide-react";
+import { toNumber } from "@/lib/decimal-utils";
 import Link from "next/link";
+import { ArrowLeft, Phone, Mail, MapPin, Wallet, TrendingUp, History, Receipt } from "lucide-react";
 import SupplierHistoryTable from "@/components/inventory/SupplierHistoryTable";
-import SupplierActions from "@/components/inventory/SupplierActions";
 
-// Type definition for merged transaction
-interface Transaction {
+export const dynamic = 'force-dynamic';
+
+interface Props {
+    params: Promise<{ id: string }>;
+}
+
+export type TransactionType = 'INVOICE' | 'PAYMENT' | 'SALE';
+
+export interface Transaction {
     id: string;
     date: Date;
-    type: 'INVOICE' | 'PAYMENT' | 'SALE';
+    type: TransactionType;
     reference: string;
     amount: number;
     status: string;
     isCredit: boolean;
+    balanceAfter?: number;
     method?: string;
     warehouseId?: string;
-    items?: {
+    items?: Array<{
         id: string;
         name: string;
         sku: string;
         category: string;
         quantity: number;
         unitCost: number;
-        returnedQty?: number;
+        returnedQty: number;
         product?: {
             name: string;
-            stocks?: {
+            stocks: Array<{
                 warehouseId: string;
                 quantity: number;
-            }[];
+            }>;
         };
-    }[];
-    runningBalance?: number;
+    }>;
 }
 
-
-
-export default async function SupplierPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function SupplierDetailPage({ params }: Props) {
     const { id } = await params;
 
-    // 1. Security Check
-    const user = await getCurrentUser();
-    if (!user || !hasPermission(user.permissions, PERMISSIONS.INVENTORY_VIEW)) {
-        redirect('/unauthorized');
-    }
-
-    // 2. Fetch Supplier Data
+    // 1. Fetch Supplier Base Info
     const supplier = await prisma.supplier.findUnique({
         where: { id },
         include: {
-            _count: {
-                select: { invoices: true, payments: true }
-            }
+            linkedUser: true
         }
     });
 
     if (!supplier) {
-        return (
-            <div className="p-8 text-center">
-                <h2 className="text-xl font-bold text-red-500">المورد غير موجود</h2>
-                <Link href="/inventory" className="text-cyan-500 hover:underline mt-4 block">
-                    &larr; العودة إلى المخزون
-                </Link>
-            </div>
-        );
+        notFound();
     }
 
-    // 3. Fetch History (Last 50 Transactions)
-    // We fetch Invoices and Payments separately then merge, as Union queries in Prisma are tricky
-    const [invoices, payments, sales] = await Promise.all([
+    // 2. Fetch User Permissions (Mocked or actual)
+    const permissions = {
+        canEdit: true,
+        canDelete: true,
+        canRecordPayment: true,
+    };
+
+    // 3. Fetch all history components in parallel
+    const [invoices, payments, sales, warehouses] = await Promise.all([
         prisma.purchaseInvoice.findMany({
             where: { supplierId: id },
-            orderBy: { createdAt: 'desc' },
-            take: 500,
             include: {
                 items: {
                     include: {
                         product: {
                             include: {
                                 category: true,
-                                stocks: {
-                                    select: {
-                                        warehouseId: true,
-                                        quantity: true
-                                    }
-                                }
+                                stocks: true
                             }
                         }
                     }
                 }
-            }
+            },
+            orderBy: { createdAt: 'desc' }
         }),
         prisma.supplierPayment.findMany({
             where: { supplierId: id },
-            orderBy: { paymentDate: 'desc' },
-            take: 500
+            orderBy: { paymentDate: 'desc' }
         }),
-        prisma.sale.findMany({
-            where: { 
-                relatedSupplierId: id, 
-                status: 'COMPLETED',
-                paymentMethod: { in: ['ACCOUNT', 'DEFERRED'] }
-            },
-            orderBy: { createdAt: 'desc' },
-            take: 500,
+        supplier.linkedUserId ? prisma.sale.findMany({
+            where: { customerId: supplier.linkedUserId },
             include: {
                 items: {
                     include: {
                         product: {
                             include: {
                                 category: true,
-                                stocks: {
-                                    select: {
-                                        warehouseId: true,
-                                        quantity: true
-                                    }
-                                }
+                                stocks: true
                             }
                         }
                     }
                 }
-            }
+            },
+            orderBy: { createdAt: 'desc' }
+        }) : Promise.resolve([]),
+        prisma.warehouse.findMany({
+            where: { deletedAt: null },
+            select: { id: true, name: true }
         })
     ]);
 
@@ -136,23 +119,23 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
             date: inv.createdAt,
             type: 'INVOICE' as const,
             reference: inv.invoiceNumber || 'INV-???',
-            amount: inv.totalAmount.toNumber(),
+            amount: toNumber(inv.totalAmount),
             status: inv.status,
             isCredit: false, // Increases Debt
             warehouseId: inv.warehouseId,
             items: inv.items.map(item => ({
                 id: item.id,
-                name: item.product.name,
-                sku: item.product.sku,
-                category: item.product.category.name,
-                quantity: item.quantity.toNumber(),
-                unitCost: item.unitCost.toNumber(),
-                returnedQty: item.returnedQty?.toNumber() || 0,
+                name: item.product?.name || '',
+                sku: item.product?.sku || '',
+                category: item.product?.category?.name || '',
+                quantity: toNumber(item.quantity),
+                unitCost: toNumber(item.unitCost),
+                returnedQty: toNumber(item.returnedQty),
                 product: {
-                    name: item.product.name,
-                    stocks: item.product.stocks.map(s => ({
+                    name: item.product?.name || '',
+                    stocks: (item.product?.stocks || []).map(s => ({
                         warehouseId: s.warehouseId,
-                        quantity: s.quantity.toNumber()
+                        quantity: toNumber(s.quantity)
                     }))
                 }
             }))
@@ -164,7 +147,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                 date: pay.paymentDate,
                 type: 'PAYMENT' as const,
                 reference: 'PAYMENT',
-                amount: pay.amount.toNumber(),
+                amount: toNumber(pay.amount),
                 status: 'COMPLETED',
                 isCredit: true, // Reduces Debt
                 method: pay.method
@@ -174,44 +157,37 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
             date: sale.createdAt,
             type: 'SALE' as const,
             reference: sale.id.split('-')[0].toUpperCase(),
-            amount: sale.totalAmount.toNumber(),
+            amount: toNumber(sale.totalAmount),
             status: sale.status,
             isCredit: true, // Reduces Debt
             method: sale.paymentMethod,
             items: sale.items.map(item => ({
                 id: item.id,
-                name: item.product.name,
-                sku: item.product.sku || '',
-                category: item.product.category?.name || '',
-                quantity: item.quantity.toNumber(),
-                unitCost: item.unitPrice.toNumber(),
-                returnedQty: item.refundedQty?.toNumber() || 0,
+                name: item.product?.name || '',
+                sku: item.product?.sku || '',
+                category: item.product?.category?.name || '',
+                quantity: toNumber(item.quantity),
+                unitCost: toNumber(item.unitPrice),
+                returnedQty: toNumber(item.refundedQty),
                 product: {
-                    name: item.product.name,
-                    stocks: item.product.stocks.map(s => ({
+                    name: item.product?.name || '',
+                    stocks: (item.product?.stocks || []).map(s => ({
                         warehouseId: s.warehouseId,
-                        quantity: s.quantity.toNumber()
+                        quantity: toNumber(s.quantity)
                     }))
                 }
             }))
         }))
     ].sort((a, b) => b.date.getTime() - a.date.getTime())
-        .slice(0, 500); // Increased limit to 500
+        .slice(0, 500);
 
-    // 5. Calculate Running Balance (Working backwards from current balance)
-    let currentBalance = supplier.balance.toNumber();
+    // 5. Calculate Running Balance
+    let currentBalance = toNumber(supplier.balance);
 
-    // We attach the balance AFTER the transaction occurred
     const transactionsWithBalance = transactions.map(tx => {
         const balanceAfterTx = currentBalance;
-
-        // Prepare balance for the NEXT iteration (moving back in time)
-        // If Invoice (Increased Debt), previous was Less. So Previous = Current - Amount
-        // If Payment (Reduced Debt), previous was More. So Previous = Current + Amount
-        // Note: isCredit=true means Payment (Reduces Debt). isCredit=false means Invoice (Increases Debt).
-
         if (tx.isCredit) {
-            currentBalance += tx.amount; // Use rounded numbers if needed, but float is okay for display mostly
+            currentBalance += tx.amount; 
         } else {
             currentBalance -= tx.amount;
         }
@@ -223,15 +199,16 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
     });
 
     const stats = {
-        totalInvoices: supplier._count.invoices,
-        totalPayments: supplier._count.payments,
+        totalInvoices: invoices.length,
+        totalPayments: payments.length,
         averageInvoice: invoices.length > 0
-            ? invoices.reduce((acc, i) => acc + i.totalAmount.toNumber(), 0) / invoices.length
+            ? invoices.reduce((acc, i) => acc + toNumber(i.totalAmount), 0) / invoices.length
             : 0
     };
 
     const csrfToken = await getCSRFToken();
     const tSuppliers = await getTranslations('Inventory.Suppliers');
+    const supplierBal = toNumber(supplier.balance);
 
     return (
         <div className="p-6 space-y-6 w-full animate-fade-in">
@@ -271,17 +248,17 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                 <div className="glass-card p-6 bg-gradient-to-br from-card to-muted/20 border border-border rounded-xl">
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">{tSuppliers('Details.currentBalance')}</h3>
-                        <div className={`p-2 rounded-lg ${supplier.balance.toNumber() > 0 ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'}`}>
+                        <div className={`p-2 rounded-lg ${supplierBal > 0 ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'}`}>
                             <Wallet className="w-5 h-5" />
                         </div>
                     </div>
-                    <div className={`text-3xl font-mono font-bold ${supplier.balance.toNumber() > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
-                        {Math.abs(supplier.balance.toNumber()).toFixed(2)}
+                    <div className={`text-3xl font-mono font-bold ${supplierBal > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                        {Math.abs(supplierBal).toFixed(2)}
                     </div>
                     <p className="text-xs text-muted-foreground mt-2">
-                        {supplier.balance.toNumber() > 0 
+                        {supplierBal > 0 
                             ? tSuppliers('Details.amountOwed') 
-                            : supplier.balance.toNumber() < 0 
+                            : supplierBal < 0 
                                 ? 'دائن لنا (رصيد مستحق)' 
                                 : tSuppliers('Details.noDebt')}
                     </p>
@@ -331,7 +308,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                     transactions={transactionsWithBalance} 
                     supplierId={supplier.id}
                     supplierName={supplier.name}
-                    balance={supplier.balance.toNumber()}
+                    balance={supplierBal}
                     phone={supplier.phone}
                     email={supplier.email}
                     address={supplier.address}

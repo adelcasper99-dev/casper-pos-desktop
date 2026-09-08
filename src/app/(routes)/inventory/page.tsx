@@ -7,6 +7,7 @@ import { getSession } from "@/lib/auth";
 import { getVisibleBranches } from "@/actions/branch-actions";
 import { getCurrentUser } from "@/actions/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
+import { toNumber } from "@/lib/decimal-utils";
 
 export const dynamic = 'force-dynamic';
 
@@ -42,9 +43,9 @@ export default async function InventoryPage() {
         isDefault: w.isDefault,
         branchId: w.branchId,
         branch: {
-            id: w.branch.id,
-            name: w.branch.name,
-            code: w.branch.code
+            id: w.branch?.id || '',
+            name: w.branch?.name || '',
+            code: w.branch?.code || ''
         }
     }));
 
@@ -59,16 +60,16 @@ export default async function InventoryPage() {
         id: p.id,
         sku: p.sku,
         name: p.name,
-        stock: p.stock.toNumber(),
+        stock: toNumber(p.stock),
         categoryId: p.categoryId,
         modelId: p.modelId,
         attributeId: p.attributeId,
         unitOfMeasureId: p.unitOfMeasureId,
         modelName: p.model?.name || '-',
-        costPrice: p.costPrice.toNumber(),
-        sellPrice: p.sellPrice.toNumber(),
-        sellPrice2: p.sellPrice2?.toNumber() || 0,
-        sellPrice3: p.sellPrice3?.toNumber() || 0,
+        costPrice: toNumber(p.costPrice),
+        sellPrice: toNumber(p.sellPrice),
+        sellPrice2: toNumber(p.sellPrice2),
+        sellPrice3: toNumber(p.sellPrice3),
         trackStock: p.trackStock,
         isBundle: p.isBundle,
         itemType: p.itemType,
@@ -78,7 +79,7 @@ export default async function InventoryPage() {
         deletedAt: p.deletedAt ? p.deletedAt.toISOString() : null,
         description: p.description,
         archived: p.archived,
-        minStock: p.minStock.toNumber(),
+        minStock: toNumber(p.minStock),
         version: p.version
     }));
 
@@ -92,11 +93,11 @@ export default async function InventoryPage() {
         status: inv.status,
         purchaseDate: inv.createdAt,
         supplier: {
-            name: inv.supplier.name,
+            name: inv.supplier?.name || '',
         },
-        totalAmount: inv.totalAmount.toNumber(),
-        paidAmount: inv.paidAmount.toNumber(),
-        deliveryCharge: inv.deliveryCharge.toNumber()
+        totalAmount: toNumber(inv.totalAmount),
+        paidAmount: toNumber(inv.paidAmount),
+        deliveryCharge: toNumber(inv.deliveryCharge)
     }));
 
     const csrfToken = await getCSRFToken();
