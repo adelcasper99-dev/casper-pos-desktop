@@ -67,6 +67,9 @@ function wrapCallbackRename(originalFn) {
     wrapped[util.promisify.custom] = wrapAsyncRename(fs.promises.rename);
   }
 
+  return wrapped;
+}
+
 function wrapAsyncCopyFile(originalFn) {
   if (typeof originalFn !== 'function') return originalFn;
   return async function (src, dest, flags) {
