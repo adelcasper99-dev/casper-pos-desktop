@@ -1,8 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import POSClientAPI, { type POSFloor } from "./POSClientAPI";
-import { getTranslations } from "@/lib/i18n-mock";
 import { getCSRFToken } from "@/lib/csrf";
-import { getCurrentShift } from "@/actions/shift-management-actions";
+import { getCurrentShiftInternal } from "@/actions/shift-management-actions";
 import ShiftStatusIndicator from "@/components/shift/ShiftStatusIndicator";
 import { getEffectiveStoreSettings } from "@/actions/settings";
 import { getDefaultWarehouses } from "@/actions/inventory";
@@ -13,36 +12,40 @@ import { toNumber } from "@/lib/decimal-utils";
 export const dynamic = 'force-dynamic';
 
 export default async function POSPage() {
-    const csrfToken = await getCSRFToken();
-    const session = await getSession();
-
-    // Evaluate permissions tightly for the client controls
-    const userPerms = session?.user?.permissions || [];
-    const isSuperAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'Admin';
-    const permissions = {
-        canCheckout: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.POS_CHECKOUT),
-        canHoldCart: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.POS_HOLD_CART),
-        canDineIn: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.POS_DINE_IN),
-        canPrintReceipt: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.POS_PRINT_RECEIPT),
-        canChangePrice: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.POS_CHANGE_PRICE),
-        canDiscount: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.POS_DISCOUNT),
-        canViewCost: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.INVENTORY_VIEW_COST),
-        canSelectPriceTier: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.POS_SELECT_PRICE_TIER),
-        maxDiscount: session?.user?.maxDiscount ?? 0,
-        maxDiscountAmount: session?.user?.maxDiscountAmount ?? 0,
-    };
-
-    // Fetch current shift
-    const shiftResult = await getCurrentShift();
-    const currentShift = shiftResult.shift;
-
     try {
-        const [settingsRes, whRes] = await Promise.all([
-            getEffectiveStoreSettings(),
-            getDefaultWarehouses()
+        const [csrfToken, session] = await Promise.all([
+            getCSRFToken().catch(() => null),
+            getSession().catch(() => null),
         ]);
-        const settings = settingsRes.success ? settingsRes.data : null;
-        const posDefault = whRes.success ? whRes.posDefault : null;
+
+        // Evaluate permissions tightly for the client controls
+        const userPerms = session?.user?.permissions || [];
+        const isSuperAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'Admin';
+        const permissions = {
+            canCheckout: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.POS_CHECKOUT),
+            canHoldCart: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.POS_HOLD_CART),
+            canDineIn: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.POS_DINE_IN),
+            canPrintReceipt: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.POS_PRINT_RECEIPT),
+            canChangePrice: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.POS_CHANGE_PRICE),
+            canDiscount: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.POS_DISCOUNT),
+            canViewCost: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.INVENTORY_VIEW_COST),
+            canSelectPriceTier: isSuperAdmin || hasPermission(userPerms, PERMISSIONS.POS_SELECT_PRICE_TIER),
+            maxDiscount: session?.user?.maxDiscount ?? 0,
+            maxDiscountAmount: session?.user?.maxDiscountAmount ?? 0,
+        };
+
+        // Fetch current shift safely via internal server action
+        const shiftResult = session?.user?.id 
+            ? await getCurrentShiftInternal({ userId: session.user.id }).catch(() => ({ shift: null }))
+            : { shift: null };
+        const currentShift = shiftResult?.shift ?? null;
+
+        const [settingsRes, whRes] = await Promise.all([
+            getEffectiveStoreSettings().catch(() => ({ success: false, data: null })),
+            getDefaultWarehouses().catch(() => ({ success: false, posDefault: null }))
+        ]);
+        const settings = settingsRes?.success ? settingsRes.data : null;
+        const posDefault = whRes?.success ? whRes.posDefault : null;
         const posDefaultName = posDefault?.name || null;
         const posDefaultId = posDefault?.id || null;
 
@@ -60,9 +63,12 @@ export default async function POSPage() {
                     }
                 } : false
             }
+        }).catch((err) => {
+            console.error("Failed to load products for POS SSR:", err);
+            return [];
         });
 
-        const products = productsRaw.map(p => {
+        const products = (productsRaw || []).map(p => {
             // Calculate stock for the specific warehouse, or total if no default is found (fallback)
             let warehouseStock = 0;
             if (posDefaultId && p.stocks && p.stocks.length > 0) {
@@ -73,7 +79,7 @@ export default async function POSPage() {
                 id: p.id,
                 sku: p.sku,
                 name: p.name,
-                stock: warehouseStock, // Now reflects the specific warehouse stock
+                stock: warehouseStock,
                 categoryId: p.categoryId,
                 modelId: p.modelId,
                 modelName: p.model?.name || '-',
@@ -86,13 +92,17 @@ export default async function POSPage() {
                 isBundle: !!(p as { isBundle?: boolean }).isBundle,
             };
         });
-        const rawCategories = await prisma.category.findMany();
-        const categories = rawCategories.map(c => ({
+
+        const rawCategories = await prisma.category.findMany().catch((err) => {
+            console.error("Failed to load categories for POS SSR:", err);
+            return [];
+        });
+        const categories = (rawCategories || []).map(c => ({
             ...c,
             color: c.color || '#3b82f6'
         }));
 
-        // Example registers - In production, fetch from database
+        // Example registers
         const registers = [
             { id: "reg-1", name: "Main Register" },
             { id: "reg-2", name: "Counter A" }
@@ -136,16 +146,16 @@ export default async function POSPage() {
         return (
             <div className="flex flex-col items-center justify-center h-[100dvh] p-4 text-center">
                 <h1 className="text-2xl font-bold text-red-600 mb-4">خطأ في تحميل نقطة البيع</h1>
-                <p className="text-gray-600 mb-6">حدث خطأ تقني أثناء تحميل البيانات. قد يكون ذلك بسبب تلف مؤقت في البيانات المحلية.</p>
-                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 max-w-md">
-                    <p className="text-yellow-700">يرجى محاولة إغلاق التطبيق وإعادة تشغيله. سيقوم النظام بمحاولة إصلاح البيانات تلقائياً عند التشغيل.</p>
+                <p className="text-gray-600 dark:text-gray-300 mb-6">حدث خطأ تقني أثناء تحميل البيانات. قد يكون ذلك بسبب تلف مؤقت في الاتصال أو البيانات.</p>
+                <div className="bg-yellow-500/10 border-l-4 border-yellow-500 p-4 mb-6 max-w-md text-start">
+                    <p className="text-yellow-600 dark:text-yellow-400 text-sm">يرجى محاولة تحديث الصفحة أو إعادة تسجيل الدخول للتحقق من الصلاحيات.</p>
                 </div>
-                <button 
-                    onClick={() => window.location.reload()} 
-                    className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition-colors"
+                <a 
+                    href="/pos" 
+                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors inline-block text-sm font-medium"
                 >
                     إعادة المحاولة
-                </button>
+                </a>
             </div>
         );
     }
