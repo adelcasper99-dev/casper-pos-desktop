@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { provisionTenantCore } from "@/actions/hq-tenant-actions";
 import { rateLimit } from "@/lib/rate-limit";
-import { createUserSession } from "@/lib/auth";
 import { normalizePhone, verifyVerificationToken } from "@/lib/otp-service";
 
 const signupSchema = z.object({
@@ -59,22 +58,11 @@ export async function POST(request: Request) {
       phone: normalizedPhone
     });
 
-    // 4. Create Session for new Admin User
-    await createUserSession({
-      id: result.user.id,
-      username: result.user.username,
-      name: result.user.name,
-      role: "ADMIN",
-      tenantId: result.tenant.id,
-      branchId: result.branchId,
-      permissions: ["*"]
-    });
-
     return NextResponse.json({
       success: true,
-      message: "تم إنشاء حسابك وتفعيل الفترة التجريبية (14 يوماً) بنجاح!",
+      message: "تم إنشاء متجرك وتفعيل الفترة التجريبية (14 يوماً) بنجاح! يرجى تسجيل الدخول للبدء.",
       subdomain: result.tenant.slug,
-      redirectUrl: "/dashboard"
+      redirectUrl: "/login"
     });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {

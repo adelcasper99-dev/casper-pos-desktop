@@ -25,7 +25,7 @@ import { useRouter } from "next/navigation";
 
 export default function SignupForm() {
   const router = useRouter();
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -48,6 +48,11 @@ export default function SignupForm() {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [adminUsername, setAdminUsername] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
+
+  // Step 3 State (Success & Redirect)
+  const [createdSubdomain, setCreatedSubdomain] = useState("");
+  const [targetLoginUrl, setTargetLoginUrl] = useState("");
+  const [redirectCountdown, setRedirectCountdown] = useState(6);
 
   // Helper to slugify store name
   const slugify = (text: string) => {
@@ -102,6 +107,19 @@ export default function SignupForm() {
     }, 1000);
     return () => clearInterval(interval);
   }, [resendCooldown]);
+
+  // Step 3 Auto-Redirect Countdown
+  useEffect(() => {
+    if (step !== 3 || !targetLoginUrl) return;
+    if (redirectCountdown <= 0) {
+      window.location.href = targetLoginUrl;
+      return;
+    }
+    const interval = setInterval(() => {
+      setRedirectCountdown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [step, targetLoginUrl, redirectCountdown]);
 
   // Step 1: Request OTP
   const handleSendOtp = async (e: React.FormEvent) => {
@@ -234,8 +252,17 @@ export default function SignupForm() {
         setError(signupData.error || "فشل تدشين الحساب");
         setLoading(false);
       } else {
-        router.refresh();
-        router.push("/dashboard");
+        const subdomain = signupData.subdomain || slug;
+        setCreatedSubdomain(subdomain);
+
+        const isProdDomain = typeof window !== "undefined" && window.location.hostname.includes("casper-erp.com");
+        const loginUrl = isProdDomain
+          ? `https://${subdomain}.casper-erp.com/login`
+          : `/login`;
+
+        setTargetLoginUrl(loginUrl);
+        setStep(3);
+        setLoading(false);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "حدث خطأ غير متوقع أثناء إتمام التسجيل";
@@ -281,7 +308,14 @@ export default function SignupForm() {
               step === 2 ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-slate-900 text-slate-500"
             }`}>
               <span className="w-4 h-4 rounded-full bg-slate-800 flex items-center justify-center text-[10px]">2</span>
-              <span>تأكيد الـ OTP وبيانات الدخول</span>
+              <span>تأكيد الـ OTP</span>
+            </div>
+            <span className="h-0.5 w-6 bg-slate-800" />
+            <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all ${
+              step === 3 ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-slate-900 text-slate-500"
+            }`}>
+              <span className="w-4 h-4 rounded-full bg-slate-800 flex items-center justify-center text-[10px]">3</span>
+              <span>الدخول للمتجر</span>
             </div>
           </div>
         </div>
@@ -295,7 +329,7 @@ export default function SignupForm() {
         )}
 
         {/* Success Alert */}
-        {successMessage && (
+        {successMessage && step !== 3 && (
           <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 p-3 rounded-xl text-xs mb-4 text-center font-bold flex items-center justify-center gap-2 animate-in fade-in">
             <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-emerald-400" />
             <span>{successMessage}</span>
@@ -594,6 +628,56 @@ export default function SignupForm() {
               </button>
             </div>
           </form>
+        )}
+
+        {/* STEP 3: Store Provisioned Success Screen */}
+        {step === 3 && (
+          <div className="space-y-6 bg-slate-900/80 backdrop-blur-xl border border-emerald-500/30 p-8 rounded-2xl shadow-2xl animate-in zoom-in-95 text-center">
+            <div className="w-16 h-16 bg-emerald-500/20 border border-emerald-500/40 rounded-full flex items-center justify-center mx-auto text-emerald-400 shadow-xl shadow-emerald-500/10">
+              <CheckCircle2 className="w-9 h-9" />
+            </div>
+
+            <div className="space-y-2">
+              <h2 className="text-2xl font-black text-white">
+                🎉 تم إنشاء متجرك بنجاح!
+              </h2>
+              <p className="text-slate-300 text-sm font-semibold">
+                تم تفعيل النسخة السحابية والفترة التجريبية المجانية (14 يوماً) لمتجرك:
+              </p>
+              <div className="inline-block px-4 py-2 bg-slate-950 border border-slate-800 rounded-xl font-mono text-emerald-400 font-bold text-sm mt-1 dir-ltr">
+                https://{createdSubdomain}.casper-erp.com
+              </div>
+            </div>
+
+            <div className="bg-slate-950/80 border border-slate-800/80 p-4 rounded-xl text-right space-y-2 text-xs">
+              <div className="flex justify-between items-center text-slate-300 font-bold">
+                <span className="text-slate-500">اسم المستخدم:</span>
+                <span className="font-mono text-white bg-slate-900 px-2 py-0.5 rounded">{adminUsername}</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-300 font-bold">
+                <span className="text-slate-500">اسم المتجر:</span>
+                <span className="text-white">{storeName}</span>
+              </div>
+              <p className="text-[11px] text-slate-400 pt-2 border-t border-slate-900">
+                يرجى تسجيل الدخول إلى لوحة تحكم متجرك باستخدام بيانات المدير أعلاه للبدء.
+              </p>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <a
+                href={targetLoginUrl}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black h-14 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-600/30 text-base"
+              >
+                <span>الانتقال لصفحة تسجيل الدخول لمتجرك الآن</span>
+                <ArrowLeft className="w-5 h-5" />
+              </a>
+
+              <p className="text-[11px] text-slate-500 font-bold flex items-center justify-center gap-1.5">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                <span>سيتم تحويلك تلقائياً لصفحة الدخول خلال {redirectCountdown} ثوانٍ...</span>
+              </p>
+            </div>
+          </div>
         )}
 
       </div>
