@@ -10,6 +10,8 @@ import bcrypt from "bcryptjs";
 // ── V-06: In-memory login rate limiting ──────────────────────────────────────
 import { rateLimit, clearRateLimit } from "@/lib/rate-limit";
 
+import { runWithTenant } from "@/lib/prisma-tenant-extension";
+
 export async function login(formData: FormData) {
     const username = (formData.get("username") as string) || "unknown";
     const password = formData.get("password") as string;
@@ -34,10 +36,22 @@ export async function login(formData: FormData) {
     const cleanUsername = username.trim();
     const isPostgres = process.env.DATABASE_URL?.startsWith('postgres') || process.env.DATABASE_URL?.startsWith('postgresql');
 
-    const { runWithTenant } = await import('@/lib/prisma-tenant-extension');
-    const userPromise = runWithTenant('SYSTEM', () =>
-        prisma.user.findFirst({
+    let activeTenantId: string | null = null;
+    try {
+        const { headers } = await import("next/headers");
+        const reqHeaders = headers();
+        const rawTenantHeader = reqHeaders.get('x-tenant-id');
+        if (rawTenantHeader && rawTenantHeader !== 'SYSTEM' && rawTenantHeader !== 'default') {
+            activeTenantId = decodeURIComponent(rawTenantHeader);
+        }
+    } catch {
+        // Fallback for non-request contexts
+    }
+
+    const userPromise = runWithTenant('SYSTEM', async () =>
+        await prisma.user.findFirst({
             where: {
+                ...(activeTenantId ? { tenantId: activeTenantId } : {}),
                 OR: [
                     isPostgres 
                         ? { username: { equals: cleanUsername, mode: 'insensitive' } } 
@@ -51,7 +65,7 @@ export async function login(formData: FormData) {
             },
             include: { role: true, branch: { select: { type: true } } }
         })
-    ) as Promise<any>;
+    );
 
     const [user, mainBranchId] = await Promise.all([
         userPromise,

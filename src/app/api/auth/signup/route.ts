@@ -84,10 +84,41 @@ export async function POST(request: Request) {
       );
     }
 
-    const errObj = error as { code?: string; message?: string };
-    if (errObj?.code === "P2002" || errObj?.message?.includes("مستخدم بالفعل")) {
+    const errObj = error as { code?: string; message?: string; meta?: { target?: string[] | string } };
+    if (errObj?.code === "P2002") {
+      const rawTarget = errObj.meta?.target;
+      const targets = Array.isArray(rawTarget)
+        ? rawTarget.map((t) => String(t).toLowerCase())
+        : [String(rawTarget || "").toLowerCase()];
+
+      if (targets.some((t) => t.includes("phone"))) {
+        return NextResponse.json(
+          { error: "رقم الهاتف هذا مسجل بالفعل في النظام، يرجى استخدام رقم آخر أو تسجيل الدخول." },
+          { status: 409 }
+        );
+      }
+      if (targets.some((t) => t.includes("username"))) {
+        return NextResponse.json(
+          { error: "اسم المستخدم هذا مسجل بالفعل في هذا المتجر، يرجى اختيار اسم آخر." },
+          { status: 409 }
+        );
+      }
+      if (targets.some((t) => t.includes("slug") || t.includes("domain") || t === "id" || t.includes("tenant_pkey") || t.includes("tenant_slug_key") || t.includes("tenant_domain_key"))) {
+        return NextResponse.json(
+          { error: "هذا المعرف الفرعي (Subdomain) مستخدم بالفعل، يرجى اختيار اسم آخر." },
+          { status: 409 }
+        );
+      }
+
       return NextResponse.json(
-        { error: "هذا المعرف الفرعي (Subdomain) مستخدم بالفعل، يرجى اختيار اسم آخر." },
+        { error: "توجد بيانات مسجلة مسبقاً تطابق البيانات المدخلة، يرجى المراجعة." },
+        { status: 409 }
+      );
+    }
+
+    if (errObj?.message?.includes("مستخدم بالفعل")) {
+      return NextResponse.json(
+        { error: errObj.message },
         { status: 409 }
       );
     }

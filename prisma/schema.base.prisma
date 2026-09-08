@@ -61,14 +61,14 @@ model StaffOverrideLog {
 model User {
   id                   String                @id @default(uuid())
   tenantId String @default("default") // MULTITENANT_FIELD
-  username             String                @unique
+  username             String
   password             String
   name                 String?
   roleStr              String                @default("STAFF")
   createdAt            DateTime              @default(now())
   branchId             String?
   deletedAt            DateTime?
-  phone                String?               @unique
+  phone                String?
   isFrozen             Boolean               @default(false)
   isGlobalAdmin        Boolean               @default(false)
   managedHQIds         String?
@@ -94,6 +94,8 @@ model User {
   role                 Role?                 @relation(fields: [roleId], references: [id])
   branch               Branch?               @relation(fields: [branchId], references: [id])
 
+  @@unique([tenantId, username])
+  @@unique([tenantId, phone])
   @@index([tenantId])
 }
 
