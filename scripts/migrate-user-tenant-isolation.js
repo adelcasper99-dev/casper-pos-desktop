@@ -28,6 +28,13 @@ async function migrateUserIsolation() {
       // 2. Account Model Unique Constraints
       prisma.$executeRawUnsafe(`ALTER TABLE "Account" DROP CONSTRAINT IF EXISTS "Account_code_key"`),
       prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "Account_code_key"`),
+      // Clean up orphaned 0-journal-line duplicate placeholder accounts in default tenant
+      prisma.$executeRawUnsafe(`
+        DELETE FROM "Account" 
+        WHERE "tenantId" = 'default' 
+          AND id IN ('acc-1200-7f7d91', 'acc-4100-87e356', 'acc-5100-876c54')
+          AND id NOT IN (SELECT DISTINCT "accountId" FROM "JournalLine")
+      `),
       prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "Account_tenantId_code_key" ON "Account"("tenantId", "code")`),
 
       // 3. Role Model Unique Constraints
