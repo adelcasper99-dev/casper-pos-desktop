@@ -141,7 +141,12 @@ export default function SignupForm() {
       const res = await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, channel })
+        body: JSON.stringify({ 
+          phone, 
+          channel, 
+          email: email.trim() || undefined,
+          storeName: storeName.trim() || undefined
+        })
       });
 
       const data = await res.json();
@@ -152,7 +157,7 @@ export default function SignupForm() {
         if (data.deepLink) {
           setTelegramDeepLink(data.deepLink);
         }
-        setSuccessMessage(data.message || (channel === "telegram" ? "تم تجهيز رمز التحقق عبر تليجرام" : "تم إرسال رمز التحقق عبر الواتساب"));
+        setSuccessMessage(data.message || (channel === "telegram" ? "تم تجهيز رمز التحقق عبر تليجرام" : "تم إرسال رمز التحقق"));
         setStep(2);
         setResendCooldown(60);
       }
@@ -173,7 +178,12 @@ export default function SignupForm() {
       const res = await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, channel })
+        body: JSON.stringify({ 
+          phone, 
+          channel, 
+          email: email.trim() || undefined,
+          storeName: storeName.trim() || undefined
+        })
       });
       const data = await res.json();
       if (!res.ok || data.error) {
@@ -182,7 +192,7 @@ export default function SignupForm() {
         if (data.deepLink) {
           setTelegramDeepLink(data.deepLink);
         }
-        setSuccessMessage("تمت إعادة تجهيز الرمز بنجاح");
+        setSuccessMessage(data.message || "تمت إعادة إرسال الرمز بنجاح");
         setResendCooldown(60);
       }
     } catch {

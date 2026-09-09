@@ -8,7 +8,9 @@ import { logger } from "@/lib/logger";
 
 const sendOtpSchema = z.object({
     phone: z.string().min(8, "رقم الهاتف غير صحيح").max(20, "رقم الهاتف غير صحيح"),
-    channel: z.enum(["whatsapp", "sms", "telegram"]).optional().default("whatsapp")
+    email: z.string().email("البريد الإلكتروني غير صالح").optional().or(z.literal("")),
+    storeName: z.string().optional(),
+    channel: z.enum(["whatsapp", "sms", "telegram", "email"]).optional().default("whatsapp")
 });
 
 export async function POST(request: Request) {
@@ -35,6 +37,7 @@ export async function POST(request: Request) {
         const parsed = sendOtpSchema.parse(body);
         const normalizedPhone = normalizePhone(parsed.phone);
         const selectedChannel = (parsed.channel || "whatsapp") as OtpChannel;
+        const normalizedEmail = parsed.email && parsed.email.trim().length > 0 ? parsed.email.trim() : undefined;
 
         if (!normalizedPhone || normalizedPhone.length < 8) {
             return NextResponse.json({ error: "رقم الهاتف غير صالح" }, { status: 400 });
@@ -80,15 +83,20 @@ export async function POST(request: Request) {
             });
         });
 
-        // 6. Dispatch via Selected Gateway (Non-blocking failure safety)
-        const dispatchResult = await dispatchOtpMessage(normalizedPhone, otpCode, selectedChannel);
+        // 6. Dispatch via Selected Gateway (with automatic Email fallback)
+        const dispatchResult = await dispatchOtpMessage(
+            normalizedPhone, 
+            otpCode, 
+            selectedChannel,
+            { email: normalizedEmail, storeName: parsed.storeName }
+        );
 
         logger.info(`[API send-otp] OTP generated for ${normalizedPhone} (Channel: ${selectedChannel}, Provider: ${dispatchResult.provider})`);
 
         if (!dispatchResult.success) {
             return NextResponse.json(
                 { 
-                    error: dispatchResult.error || "تعذر إرسال رمز التحقق. يرجى التأكد من أن الرقم مسجل على واتساب أو المحاولة لاحقاً.",
+                    error: dispatchResult.error || "تعذر إرسال رمز التحقق. يرجى التأكد من أن الرقم مسجل على واتساب، أو إدخال البريد الإلكتروني، أو استخدام خيار تليجرام.",
                     channel: dispatchResult.channel,
                     provider: dispatchResult.provider
                 },
@@ -102,7 +110,9 @@ export async function POST(request: Request) {
             deepLink = session.deepLink;
         }
 
-        const channelMessage = selectedChannel === "telegram"
+        const channelMessage = dispatchResult.provider === "EMAIL_SMTP"
+            ? `تم إرسال رمز التحقق إلى بريدك الإلكتروني (${normalizedEmail}) بنجاح`
+            : selectedChannel === "telegram"
             ? "تم تجهيز رمز التحقق، اضغط على الزر أدناه لاستلامه في تليجرام فوراً"
             : selectedChannel === "sms"
             ? "تم إرسال رمز التحقق عبر رسالة SMS نصية بنجاح"

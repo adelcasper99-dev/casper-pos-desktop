@@ -49,7 +49,7 @@ describe("OTP Verification Service Engine", () => {
         expect(verified).toBeNull();
     });
 
-    it("dispatches OTP across multiple channels seamlessly (whatsapp, sms, telegram)", async () => {
+    it("dispatches OTP across multiple channels seamlessly (whatsapp, sms, telegram, email)", async () => {
         const { dispatchOtpMessage } = await import("../lib/otp-service");
         
         // 1. WhatsApp Dispatch (Dev Mock)
@@ -67,5 +67,11 @@ describe("OTP Verification Service Engine", () => {
         const smsResult = await dispatchOtpMessage("01012345678", "123456", "sms");
         expect(smsResult.success).toBe(true);
         expect(smsResult.channel).toBe("sms");
+
+        // 4. Email Dispatch (Dev Mock when SMTP not configured)
+        const emailResult = await dispatchOtpMessage("01012345678", "123456", "email", { email: "test@casper-erp.com" });
+        expect(emailResult.success).toBe(true);
+        expect(emailResult.channel).toBe("email");
     });
 });
+

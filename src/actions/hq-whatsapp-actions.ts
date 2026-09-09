@@ -176,3 +176,61 @@ export const getTelegramConfigAction = secureAction(
   },
   { requireCSRF: false }
 );
+
+
+import { testSmtpConnection, sendEmailOtp } from "@/lib/email-service";
+
+
+export const testSmtpAction = secureAction(
+  async (): Promise<{ success: boolean; error?: string }> => {
+    const session = await getSession();
+    if (!session?.user?.isGlobalAdmin) {
+      throw new Error("Forbidden: Super Admin access required.");
+    }
+
+    return await testSmtpConnection();
+  },
+  { requireCSRF: false }
+);
+
+export const sendSmtpTestEmailAction = secureAction(
+  async (email: string): Promise<{ success: boolean; messageId?: string; error?: string }> => {
+    const session = await getSession();
+    if (!session?.user?.isGlobalAdmin) {
+      throw new Error("Forbidden: Super Admin access required.");
+    }
+
+    if (!email || !email.includes("@")) {
+      return { success: false, error: "عنوان البريد الإلكتروني غير صحيح" };
+    }
+
+    return await sendEmailOtp({
+      to: email.trim(),
+      otpCode: "948215",
+      storeName: "Casper ERP HQ (Test)"
+    });
+  },
+  { requireCSRF: false }
+);
+
+export const getSmtpConfigAction = secureAction(
+  async (): Promise<{ hasConfig: boolean; host: string | null; user: string | null; from: string | null }> => {
+    const session = await getSession();
+    if (!session?.user?.isGlobalAdmin) {
+      throw new Error("Forbidden: Super Admin access required.");
+    }
+
+    const host = process.env.SMTP_HOST || null;
+    const user = process.env.SMTP_USER || null;
+    const from = process.env.SMTP_FROM || null;
+
+    return {
+      hasConfig: Boolean(host && user),
+      host,
+      user,
+      from
+    };
+  },
+  { requireCSRF: false }
+);
+

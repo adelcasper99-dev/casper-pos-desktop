@@ -79,7 +79,14 @@ export function verifyVerificationToken(token: string): VerificationPayload | nu
     }
 }
 
-export type OtpChannel = "whatsapp" | "sms" | "telegram";
+import { sendEmailOtp } from "./email-service";
+
+export type OtpChannel = "whatsapp" | "sms" | "telegram" | "email";
+
+export interface OtpDispatchOptions {
+    email?: string;
+    storeName?: string;
+}
 
 export interface OtpDispatchResult {
     success: boolean;
@@ -89,12 +96,13 @@ export interface OtpDispatchResult {
 }
 
 /**
- * Dispatches the OTP message via WhatsApp Gateway, Android SMS Gateway, Telegram Bot, or fallback mock
+ * Dispatches the OTP message via WhatsApp Gateway, Email SMTP, Android SMS Gateway, Telegram Bot, or fallback mock
  */
 export async function dispatchOtpMessage(
     phone: string, 
     otp: string,
-    channel: OtpChannel = "whatsapp"
+    channel: OtpChannel = "whatsapp",
+    options?: OtpDispatchOptions
 ): Promise<OtpDispatchResult> {
     const normalized = normalizePhone(phone);
     const message = `رمز التحقق الخاص بك في Casper ERP هو: [ ${otp} ]\nصالح لمدة ${OTP_EXPIRY_MINUTES} دقائق.\nلا تشارك هذا الرمز مع أي شخص.`;
@@ -102,7 +110,7 @@ export async function dispatchOtpMessage(
     // 1. Dual Dispatch: If Telegram Bot is configured, notify Telegram Admin Channel for auditing
     if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_ADMIN_CHAT_ID) {
         sendTelegramMessage({
-            text: `🔐 <b>كود تحقق جديد (${channel === "telegram" ? "تليجرام" : channel === "sms" ? "رسالة SMS" : "واتساب"})</b>\n\n📱 <b>الرقم:</b> <code>+${normalized}</code>\n🔑 <b>رمز التحقق:</b> <code>${otp}</code>\n⏳ <b>المدة:</b> 5 دقائق`,
+            text: `🔐 <b>كود تحقق جديد (${channel === "telegram" ? "تليجرام" : channel === "sms" ? "رسالة SMS" : channel === "email" ? "بريد إلكتروني" : "واتساب"})</b>\n\n📱 <b>الرقم:</b> <code>+${normalized}</code>\n${options?.email ? `📧 <b>البريد:</b> <code>${options.email}</code>\n` : ""}🔑 <b>رمز التحقق:</b> <code>${otp}</code>\n⏳ <b>المدة:</b> 5 دقائق`,
             parseMode: "HTML"
         }).catch((err) => {
             logger.warn(`[OTP Service] Telegram dual-dispatch non-blocking warning: ${err}`);
@@ -113,7 +121,23 @@ export async function dispatchOtpMessage(
         return { success: true, provider: "TELEGRAM_BOT", channel: "telegram" };
     }
 
-    // 2. Primary WhatsApp Dispatch
+    // 2. Direct Email Dispatch (If explicitly selected)
+    if (channel === "email" && options?.email) {
+        const emailRes = await sendEmailOtp({
+            to: options.email,
+            otpCode: otp,
+            storeName: options.storeName,
+            expiresMinutes: OTP_EXPIRY_MINUTES
+        });
+
+        if (emailRes.success) {
+            logger.info(`[OTP Service] OTP delivered via Email SMTP to ${options.email}`);
+            return { success: true, provider: "EMAIL_SMTP", channel: "email" };
+        }
+        logger.warn(`[OTP Service] Direct email delivery failed: ${emailRes.error}`);
+    }
+
+    // 3. Primary WhatsApp Dispatch
     if (channel === "whatsapp") {
         const providerUrl = process.env.WHATSAPP_PROVIDER_URL;
         const providerApiKey = process.env.WHATSAPP_API_KEY;
@@ -144,9 +168,26 @@ export async function dispatchOtpMessage(
                 logger.error(`[OTP Service] WhatsApp gateway dispatch failed: ${msg} - proceeding to fallback cascade`);
             }
         }
+
+        // Automatic Fallback to Email if WhatsApp failed and email is provided
+        if (options?.email) {
+            logger.info(`[OTP Service] Initiating automatic Email fallback for ${normalized} (${options.email})`);
+            const fallbackEmailRes = await sendEmailOtp({
+                to: options.email,
+                otpCode: otp,
+                storeName: options.storeName,
+                expiresMinutes: OTP_EXPIRY_MINUTES
+            });
+
+            if (fallbackEmailRes.success) {
+                logger.info(`[OTP Service] WhatsApp fallback to Email SMTP succeeded for ${options.email}`);
+                return { success: true, provider: "EMAIL_SMTP", channel: "email" };
+            }
+            logger.warn(`[OTP Service] Email fallback failed: ${fallbackEmailRes.error}`);
+        }
     }
 
-    // 3. SMS Gateway Dispatch (capcom6 / textbee / Android SMS Gateway)
+    // 4. SMS Gateway Dispatch (capcom6 / textbee / Android SMS Gateway)
     const smsUrl = process.env.SMS_GATEWAY_URL;
     const smsKey = process.env.SMS_GATEWAY_API_KEY;
 
@@ -176,7 +217,7 @@ export async function dispatchOtpMessage(
         }
     }
 
-    // 4. Production vs Development Gating
+    // 5. Production vs Development Gating
     const isProduction = process.env.NODE_ENV === "production";
 
     if (isProduction) {
@@ -187,6 +228,8 @@ export async function dispatchOtpMessage(
             channel,
             error: channel === "whatsapp"
                 ? "تعذر إرسال رمز التحقق عبر واتساب (الرقم غير مسجل أو تعذر الوصول إليه)."
+                : channel === "email"
+                ? "تعذر إرسال رمز التحقق إلى البريد الإلكتروني المحدد."
                 : "تعذر إرسال رسالة SMS نصية إلى هذا الرقم حالياً."
         };
     }
@@ -206,3 +249,4 @@ export async function dispatchOtpWhatsApp(
 ): Promise<{ success: boolean; provider: string; error?: string }> {
     return await dispatchOtpMessage(phone, otp, channel);
 }
+
