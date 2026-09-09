@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/rate-limit";
-import { generateOtpCode, hashOtp, normalizePhone, dispatchOtpWhatsApp } from "@/lib/otp-service";
+import { generateOtpCode, hashOtp, normalizePhone, dispatchOtpMessage, OtpChannel } from "@/lib/otp-service";
 import { registerTelegramOtpSession } from "@/lib/telegram-otp-store";
 import { logger } from "@/lib/logger";
 
 const sendOtpSchema = z.object({
     phone: z.string().min(8, "رقم الهاتف غير صحيح").max(20, "رقم الهاتف غير صحيح"),
-    channel: z.enum(["whatsapp", "telegram"]).optional().default("whatsapp")
+    channel: z.enum(["whatsapp", "sms", "telegram"]).optional().default("whatsapp")
 });
 
 export async function POST(request: Request) {
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
         const body = await request.json();
         const parsed = sendOtpSchema.parse(body);
         const normalizedPhone = normalizePhone(parsed.phone);
-        const selectedChannel = parsed.channel || "whatsapp";
+        const selectedChannel = (parsed.channel || "whatsapp") as OtpChannel;
 
         if (!normalizedPhone || normalizedPhone.length < 8) {
             return NextResponse.json({ error: "رقم الهاتف غير صالح" }, { status: 400 });
@@ -81,7 +81,7 @@ export async function POST(request: Request) {
         });
 
         // 6. Dispatch via Selected Gateway (Non-blocking failure safety)
-        const dispatchResult = await dispatchOtpWhatsApp(normalizedPhone, otpCode, selectedChannel);
+        const dispatchResult = await dispatchOtpMessage(normalizedPhone, otpCode, selectedChannel);
 
         logger.info(`[API send-otp] OTP generated for ${normalizedPhone} (Channel: ${selectedChannel}, Provider: ${dispatchResult.provider})`);
 
@@ -93,12 +93,15 @@ export async function POST(request: Request) {
 
         const channelMessage = selectedChannel === "telegram"
             ? "تم تجهيز رمز التحقق، اضغط على الزر أدناه لاستلامه في تليجرام فوراً"
+            : selectedChannel === "sms"
+            ? "تم إرسال رمز التحقق عبر رسالة SMS نصية بنجاح"
             : "تم إرسال رمز التحقق إلى رقم الواتساب بنجاح";
 
         return NextResponse.json({
             success: true,
             message: channelMessage,
-            channel: selectedChannel,
+            channel: dispatchResult.channel || selectedChannel,
+            provider: dispatchResult.provider,
             deepLink,
             expiresInSeconds: 300
         });

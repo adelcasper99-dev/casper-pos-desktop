@@ -48,4 +48,24 @@ describe("OTP Verification Service Engine", () => {
         const verified = verifyVerificationToken("invalid-token-string");
         expect(verified).toBeNull();
     });
+
+    it("dispatches OTP across multiple channels seamlessly (whatsapp, sms, telegram)", async () => {
+        const { dispatchOtpMessage } = await import("../lib/otp-service");
+        
+        // 1. WhatsApp Dispatch (Dev Mock)
+        const waResult = await dispatchOtpMessage("01012345678", "123456", "whatsapp");
+        expect(waResult.success).toBe(true);
+        expect(waResult.channel).toBe("whatsapp");
+
+        // 2. Telegram Dispatch
+        const tgResult = await dispatchOtpMessage("01012345678", "123456", "telegram");
+        expect(tgResult.success).toBe(true);
+        expect(tgResult.provider).toBe("TELEGRAM_BOT");
+        expect(tgResult.channel).toBe("telegram");
+
+        // 3. SMS Dispatch (Dev Mock)
+        const smsResult = await dispatchOtpMessage("01012345678", "123456", "sms");
+        expect(smsResult.success).toBe(true);
+        expect(smsResult.channel).toBe("sms");
+    });
 });

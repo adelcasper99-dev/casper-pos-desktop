@@ -93,21 +93,30 @@ export function verifyVerificationToken(token: string): VerificationPayload | nu
     }
 }
 
+export type OtpChannel = "whatsapp" | "sms" | "telegram";
+
+export interface OtpDispatchResult {
+    success: boolean;
+    provider: string;
+    channel: OtpChannel;
+    error?: string;
+}
+
 /**
- * Dispatches the OTP message via WhatsApp Gateway, Telegram Bot, or fallback provider
+ * Dispatches the OTP message via WhatsApp Gateway, Android SMS Gateway, Telegram Bot, or fallback mock
  */
-export async function dispatchOtpWhatsApp(
+export async function dispatchOtpMessage(
     phone: string, 
     otp: string,
-    channel: "whatsapp" | "telegram" = "whatsapp"
-): Promise<{ success: boolean; provider: string; error?: string }> {
+    channel: OtpChannel = "whatsapp"
+): Promise<OtpDispatchResult> {
     const normalized = normalizePhone(phone);
     const message = `رمز التحقق الخاص بك في Casper ERP هو: [ ${otp} ]\nصالح لمدة ${OTP_EXPIRY_MINUTES} دقائق.\nلا تشارك هذا الرمز مع أي شخص.`;
 
-    // 1. Dual Dispatch: If Telegram Bot is configured, notify Telegram Admin Channel
+    // 1. Dual Dispatch: If Telegram Bot is configured, notify Telegram Admin Channel for auditing
     if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_ADMIN_CHAT_ID) {
         sendTelegramMessage({
-            text: `🔐 <b>كود تحقق جديد (${channel === "telegram" ? "تليجرام" : "واتساب"})</b>\n\n📱 <b>الرقم:</b> <code>+${normalized}</code>\n🔑 <b>رمز التحقق:</b> <code>${otp}</code>\n⏳ <b>المدة:</b> 5 دقائق`,
+            text: `🔐 <b>كود تحقق جديد (${channel === "telegram" ? "تليجرام" : channel === "sms" ? "رسالة SMS" : "واتساب"})</b>\n\n📱 <b>الرقم:</b> <code>+${normalized}</code>\n🔑 <b>رمز التحقق:</b> <code>${otp}</code>\n⏳ <b>المدة:</b> 5 دقائق`,
             parseMode: "HTML"
         }).catch((err) => {
             logger.warn(`[OTP Service] Telegram dual-dispatch non-blocking warning: ${err}`);
@@ -115,40 +124,84 @@ export async function dispatchOtpWhatsApp(
     }
 
     if (channel === "telegram") {
-        return { success: true, provider: "TELEGRAM_BOT" };
+        return { success: true, provider: "TELEGRAM_BOT", channel: "telegram" };
     }
 
-    const providerUrl = process.env.WHATSAPP_PROVIDER_URL;
-    const providerApiKey = process.env.WHATSAPP_API_KEY;
+    // 2. Primary WhatsApp Dispatch
+    if (channel === "whatsapp") {
+        const providerUrl = process.env.WHATSAPP_PROVIDER_URL;
+        const providerApiKey = process.env.WHATSAPP_API_KEY;
 
-    if (providerUrl) {
-        try {
-            const res = await fetch(providerUrl, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    ...(providerApiKey ? { "Authorization": `Bearer ${providerApiKey}` } : {})
-                },
-                body: JSON.stringify({
-                    to: normalized,
-                    message: message,
-                    body: message
-                }),
-                signal: AbortSignal.timeout(5000)
-            });
+        if (providerUrl) {
+            try {
+                const res = await fetch(providerUrl, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...(providerApiKey ? { "Authorization": `Bearer ${providerApiKey}` } : {})
+                    },
+                    body: JSON.stringify({
+                        to: normalized,
+                        message: message,
+                        body: message
+                    }),
+                    signal: AbortSignal.timeout(3500)
+                });
 
-            if (res.ok) {
-                logger.info(`[OTP Service] WhatsApp OTP dispatched to ${normalized} via provider`);
-                return { success: true, provider: "WHATSAPP_GATEWAY" };
+                if (res.ok) {
+                    logger.info(`[OTP Service] WhatsApp OTP dispatched to ${normalized} via provider`);
+                    return { success: true, provider: "WHATSAPP_GATEWAY", channel: "whatsapp" };
+                }
+                logger.warn(`[OTP Service] WhatsApp provider returned status ${res.status}`);
+            } catch (e: unknown) {
+                const msg = e instanceof Error ? e.message : String(e);
+                logger.error(`[OTP Service] WhatsApp gateway dispatch failed: ${msg}`);
             }
-            logger.warn(`[OTP Service] WhatsApp provider returned status ${res.status}`);
-        } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : String(e);
-            logger.error(`[OTP Service] WhatsApp gateway dispatch failed: ${msg}`);
         }
     }
 
-    // In dev or without external provider, log to secure server telemetry
-    logger.info(`[OTP Service] Simulated WhatsApp dispatch to ${normalized} (Code: ${otp})`);
-    return { success: true, provider: "DEVELOPMENT_MOCK" };
+    // 3. SMS Gateway Dispatch (capcom6 / textbee / Android SMS Gateway)
+    const smsUrl = process.env.SMS_GATEWAY_URL;
+    const smsKey = process.env.SMS_GATEWAY_API_KEY;
+
+    if (smsUrl) {
+        try {
+            const res = await fetch(smsUrl, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(smsKey ? { "Authorization": `Bearer ${smsKey}`, "X-API-Key": smsKey } : {})
+                },
+                body: JSON.stringify({
+                    to: normalized,
+                    message: message
+                }),
+                signal: AbortSignal.timeout(3500)
+            });
+
+            if (res.ok) {
+                logger.info(`[OTP Service] SMS Gateway dispatched to ${normalized}`);
+                return { success: true, provider: "ANDROID_SMS_GATEWAY", channel: "sms" };
+            }
+            logger.warn(`[OTP Service] SMS gateway returned status ${res.status}`);
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            logger.error(`[OTP Service] SMS gateway dispatch failed: ${msg}`);
+        }
+    }
+
+    // 4. In dev or without external provider, log to secure server telemetry
+    logger.info(`[OTP Service] Simulated dispatch to ${normalized} (Channel: ${channel}, Code: ${otp})`);
+    return { success: true, provider: "DEVELOPMENT_MOCK", channel };
+}
+
+/**
+ * Backwards compatibility wrapper for dispatchOtpWhatsApp
+ */
+export async function dispatchOtpWhatsApp(
+    phone: string, 
+    otp: string,
+    channel: "whatsapp" | "telegram" = "whatsapp"
+): Promise<{ success: boolean; provider: string; error?: string }> {
+    return await dispatchOtpMessage(phone, otp, channel);
 }
