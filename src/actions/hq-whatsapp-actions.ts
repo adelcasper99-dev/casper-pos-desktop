@@ -80,7 +80,7 @@ export const resetWhatsAppGateway = secureAction(
   { requireCSRF: false }
 );
 
-import { normalizePhone } from "@/lib/otp-service";
+import { normalizePhone } from "@/lib/phone-utils";
 
 const testMessageSchema = z.object({
   phone: z.string().min(8).max(20),

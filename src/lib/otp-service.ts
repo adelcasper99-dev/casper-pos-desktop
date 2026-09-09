@@ -18,22 +18,8 @@ export interface VerificationPayload {
     exp: number;
 }
 
-/**
- * Normalizes phone numbers to standard international format (no leading '+')
- */
-export function normalizePhone(rawPhone: string): string {
-    let cleaned = rawPhone.replace(/[^\d+]/g, "");
-    if (cleaned.startsWith("00")) {
-        cleaned = "+" + cleaned.substring(2);
-    }
-    if (cleaned.startsWith("01")) {
-        cleaned = "+20" + cleaned.substring(1);
-    }
-    if (cleaned.startsWith("20") && !cleaned.startsWith("+")) {
-        cleaned = "+" + cleaned;
-    }
-    return cleaned.replace(/\+/g, "").trim();
-}
+import { normalizePhone } from "./phone-utils";
+export { normalizePhone };
 
 /**
  * Generates a cryptographically strong numeric OTP code
