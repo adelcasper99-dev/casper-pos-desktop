@@ -131,17 +131,17 @@ export async function dispatchOtpMessage(
                         message: message,
                         body: message
                     }),
-                    signal: AbortSignal.timeout(3500)
+                    signal: AbortSignal.timeout(6500)
                 });
 
                 if (res.ok) {
                     logger.info(`[OTP Service] WhatsApp OTP dispatched to ${normalized} via provider`);
                     return { success: true, provider: "WHATSAPP_GATEWAY", channel: "whatsapp" };
                 }
-                logger.warn(`[OTP Service] WhatsApp provider returned status ${res.status}`);
+                logger.warn(`[OTP Service] WhatsApp provider returned status ${res.status} - proceeding to fallback cascade`);
             } catch (e: unknown) {
                 const msg = e instanceof Error ? e.message : String(e);
-                logger.error(`[OTP Service] WhatsApp gateway dispatch failed: ${msg}`);
+                logger.error(`[OTP Service] WhatsApp gateway dispatch failed: ${msg} - proceeding to fallback cascade`);
             }
         }
     }
