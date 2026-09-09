@@ -176,8 +176,23 @@ export async function dispatchOtpMessage(
         }
     }
 
-    // 4. In dev or without external provider, log to secure server telemetry
-    logger.info(`[OTP Service] Simulated dispatch to ${normalized} (Channel: ${channel}, Code: ${otp})`);
+    // 4. Production vs Development Gating
+    const isProduction = process.env.NODE_ENV === "production";
+
+    if (isProduction) {
+        logger.error(`[OTP Service] Failed to dispatch OTP to ${normalized} via any active gateway in production`);
+        return { 
+            success: false, 
+            provider: "NONE", 
+            channel,
+            error: channel === "whatsapp"
+                ? "تعذر إرسال رمز التحقق عبر واتساب (الرقم غير مسجل أو تعذر الوصول إليه)."
+                : "تعذر إرسال رسالة SMS نصية إلى هذا الرقم حالياً."
+        };
+    }
+
+    // In local development or test environment, log to secure server telemetry
+    logger.info(`[OTP Service] Dev simulated dispatch to ${normalized} (Channel: ${channel}, Code: ${otp})`);
     return { success: true, provider: "DEVELOPMENT_MOCK", channel };
 }
 

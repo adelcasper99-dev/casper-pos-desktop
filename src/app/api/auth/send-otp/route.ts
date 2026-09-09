@@ -85,6 +85,17 @@ export async function POST(request: Request) {
 
         logger.info(`[API send-otp] OTP generated for ${normalizedPhone} (Channel: ${selectedChannel}, Provider: ${dispatchResult.provider})`);
 
+        if (!dispatchResult.success) {
+            return NextResponse.json(
+                { 
+                    error: dispatchResult.error || "تعذر إرسال رمز التحقق. يرجى التأكد من أن الرقم مسجل على واتساب أو المحاولة لاحقاً.",
+                    channel: dispatchResult.channel,
+                    provider: dispatchResult.provider
+                },
+                { status: 422 }
+            );
+        }
+
         let deepLink: string | undefined = undefined;
         if (selectedChannel === "telegram") {
             const session = registerTelegramOtpSession(normalizedPhone, otpCode);
