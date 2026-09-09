@@ -80,6 +80,8 @@ export const resetWhatsAppGateway = secureAction(
   { requireCSRF: false }
 );
 
+import { normalizePhone } from "@/lib/otp-service";
+
 const testMessageSchema = z.object({
   phone: z.string().min(8).max(20),
   message: z.string().min(1).max(500),
@@ -94,13 +96,14 @@ export const sendWhatsAppTestMessage = secureAction(
     }
 
     const { phone, message } = testMessageSchema.parse(payload);
+    const normalizedPhone = normalizePhone(phone);
 
     try {
       const res = await fetch(WHATSAPP_SERVICE_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: phone, message }),
-        signal: AbortSignal.timeout(6000)
+        body: JSON.stringify({ to: normalizedPhone, message }),
+        signal: AbortSignal.timeout(10000)
       });
       if (!res.ok) {
         const errText = await res.text();
