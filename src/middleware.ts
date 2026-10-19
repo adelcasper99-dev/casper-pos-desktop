@@ -148,6 +148,7 @@ export function middleware(request: NextRequest) {
         '/api/telegram/webhook',        // Telegram Bot Webhook endpoint
         '/api/tickets/offline-ticket', // Uses x-sync-secret auth
         '/api/pos/offline-sale',        // Uses x-sync-secret auth
+        '/api/pos/branches',            // Uses x-sync-secret auth
         '/api/auth/session',            // Next-auth session endpoint
         '/api/auth/signin',
         '/api/auth/callback',
