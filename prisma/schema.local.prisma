@@ -46,6 +46,7 @@ model StoreSettings {
   lastServerNow         Float?
   localUptimeTicks      Float?
   trialStartDate        DateTime?
+  superAdminHash        String?   // Hashed super-admin password (seeded on first login)
 
   }
 
@@ -58,14 +59,14 @@ model StaffOverrideLog {
 
 model User {
   id                   String                @id @default(uuid())
-  username             String                @unique
+  username             String
   password             String
   name                 String?
   roleStr              String                @default("STAFF")
   createdAt            DateTime              @default(now())
   branchId             String?
   deletedAt            DateTime?
-  phone                String?               @unique
+  phone                String?
   isFrozen             Boolean               @default(false)
   isGlobalAdmin        Boolean               @default(false)
   managedHQIds         String?
@@ -91,14 +92,17 @@ model User {
   role                 Role?                 @relation(fields: [roleId], references: [id])
   branch               Branch?               @relation(fields: [branchId], references: [id])
 
+  @@unique([username])
+  @@unique([phone])
   }
 
 model Role {
   id          String @id @default(uuid())
-  name        String @unique
+  name        String
   permissions String @default("[]")
   users       User[]
 
+  @@unique([name])
   }
 
 model Session {
@@ -217,7 +221,7 @@ model CustomerTransaction {
 model Supplier {
   id               String            @id @default(uuid())
   name             String
-  phone            String?           @unique
+  phone            String?
   email            String?
   address          String?
   balance          Decimal           @default(0.00)
@@ -228,6 +232,7 @@ model Supplier {
   payments         SupplierPayment[]
   clientTickets    Ticket[]          @relation("ClientSupplier")
 
+  @@unique([phone])
   }
 
 model SupplierPayment {
@@ -237,18 +242,22 @@ model SupplierPayment {
   notes          String?
   paymentDate    DateTime       @default(now())
   method         String         @default("CASH")
+  reference      String?
+  createdBy      String?
+  createdAt      DateTime       @default(now())
   branchId       String?
-  journalEntries JournalEntry[]
   branch         Branch?        @relation(fields: [branchId], references: [id])
   supplier       Supplier       @relation(fields: [supplierId], references: [id])
+  journalEntries JournalEntry[]
 
   @@index([supplierId])
+  @@index([paymentDate])
   @@index([branchId])
   }
 
 model Account {
   id           String        @id @default(uuid())
-  code         String        @unique
+  code         String
   name         String
   type         String
   description  String?
@@ -257,6 +266,7 @@ model Account {
   updatedAt    DateTime      @updatedAt
   journalLines JournalLine[]
 
+  @@unique([code])
   }
 
 model JournalEntry {

@@ -50,7 +50,9 @@ function punycodeToUnicode(domain: string): string {
 }
 
 export function middleware(request: NextRequest) {
-    const host = request.headers.get('host') || request.nextUrl.host || '';
+    const proto = request.headers.get('x-forwarded-proto') || request.nextUrl.protocol.replace(':', '') || 'https';
+    const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || request.nextUrl.host || '';
+    const baseUrl = host ? `${proto}://${host}` : request.url;
     const parts = host.split('.');
     const rawSubdomain = parts.length > 2 ? parts[0] : null;
     const subdomain = rawSubdomain ? punycodeToUnicode(rawSubdomain) : null;
@@ -71,7 +73,7 @@ export function middleware(request: NextRequest) {
     // 2. Block Terminal Setup Pages on HQ Subdomain
     if (isHqDomain && terminalSetupRoutes.some(r => path.startsWith(r))) {
         const destination = sessionToken ? '/casper-hq' : '/login';
-        return NextResponse.redirect(new URL(destination, request.url));
+        return NextResponse.redirect(new URL(destination, baseUrl));
     }
 
     // Ignore common system subdomains
@@ -172,14 +174,15 @@ export function middleware(request: NextRequest) {
 
     // Early session guard: HQ domain requires authentication for all non-public paths
     if (isHqDomain && !sessionToken && path !== '/login' && !path.startsWith('/api') && !path.startsWith('/_next') && !path.startsWith('/assets')) {
-        return NextResponse.redirect(new URL('/login', request.url));
+        return NextResponse.redirect(new URL('/login', baseUrl));
     }
 
     // Create response. Rewrite ALL HQ domain requests to /casper-hq root
     // (HQ control plane is a single page — no sub-routes like /casper-hq/dashboard exist)
     let response: NextResponse;
     if (isHqDomain && !isSharedRoute && !path.startsWith('/casper-hq')) {
-        const rewriteUrl = new URL('/casper-hq', request.url);
+        const rewriteUrl = request.nextUrl.clone();
+        rewriteUrl.pathname = '/casper-hq';
         response = NextResponse.rewrite(rewriteUrl, {
             request: {
                 headers: requestHeaders,
@@ -219,7 +222,7 @@ export function middleware(request: NextRequest) {
 
     // If no session and trying to access a protected route
     if (!sessionToken && !isPublic) {
-        return NextResponse.redirect(new URL('/login', request.url));
+        return NextResponse.redirect(new URL('/login', baseUrl));
     }
 
     // Node Role Enforcement: Redirect to /network-setup if node is not configured (client nodes only, bypass on HQ)
@@ -229,12 +232,12 @@ export function middleware(request: NextRequest) {
     const isCustomerPortal = path.startsWith('/c/');
     const nodeRole = process.env.NODE_ROLE || request.cookies.get('nodeRole')?.value;
     if (!isHqDomain && !isCloudTenant && (!nodeRole || nodeRole === 'UNCONFIGURED') && path !== '/network-setup' && !isPublicAsset && !isCustomerPortal) {
-        return NextResponse.redirect(new URL('/network-setup', request.url));
+        return NextResponse.redirect(new URL('/network-setup', baseUrl));
     }
 
     // If no session and trying to access root, send to login
     if (!sessionToken && path === '/') {
-        return NextResponse.redirect(new URL('/login', request.url));
+        return NextResponse.redirect(new URL('/login', baseUrl));
     }
 
     return response;
